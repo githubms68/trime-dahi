@@ -1,0 +1,4304 @@
+diff --git a/.github/workflows/build-dahi-apk.yml b/.github/workflows/build-dahi-apk.yml
+new file mode 100755
+index 0000000..d034338
+--- /dev/null
++++ b/.github/workflows/build-dahi-apk.yml
+@@ -0,0 +1,74 @@
++# SPDX-FileCopyrightText: 2026 Rime community
++#
++# SPDX-License-Identifier: GPL-3.0-or-later
++#
++# 一键在 GitHub Actions 上编译「同文输入法大海版」（自用版）。
++# 用法：把本仓库（含本文件）推到自己的 GitHub 仓库，
++#   然后 Actions -> "Build Dahi Trime APK" -> Run workflow。
++# 编译完成后在本次运行的 Artifacts 中下载 APK。
++# 原生依赖（librime/OpenCC/...）由 script/fetch-dahi-deps.sh 按 v3.3.12 锁定版本自动拉取，
++# 因此**无需**一并上传 git 子模块；签名用自签名 keystore，构建时自动生成，**无需配置任何 Secrets**。
++
++name: Build Dahi Trime APK
++
++on:
++  workflow_dispatch:
++  push:
++    branches:
++      - develop
++      - main
++      - dahi
++
++env:
++  CI_NAME: Dahi Build
++
++jobs:
++  build:
++    runs-on: ubuntu-26.04
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v7
++        with:
++          submodules: false
++          fetch-depth: 0
++
++      - name: 拉取原生依赖（按 v3.3.12 锁定版本）
++        run: bash script/fetch-dahi-deps.sh
++
++      - name: Setup Java
++        uses: actions/setup-java@v6
++        with:
++          distribution: temurin
++          java-version: 25
++          cache: gradle
++
++      - name: Setup Android SDK
++        uses: android-actions/setup-android@v4
++
++      - name: Install CMake
++        run: |
++          sdkmanager --install "cmake;3.31.6"
++
++      - name: Generate self-signed keystore
++        run: |
++          keytool -genkeypair -v -keystore dahi.keystore -alias dahi \
++            -keyalg RSA -keysize 2048 -validity 10000 \
++            -storepass dahipass -keypass dahipass \
++            -dname "CN=Dahi Trime, OU=Dahi, O=Dahi, L=City, ST=State, C=CN"
++          B64=$(base64 -w0 dahi.keystore)
++          {
++            echo "keyBase64=$B64"
++            echo "storePassword=dahipass"
++            echo "keyAlias=dahi"
++            echo "keyPassword=dahipass"
++          } > keystore.properties
++
++      - name: Build release APKs
++        run: make release
++
++      - name: Upload APKs
++        uses: actions/upload-artifact@v4
++        with:
++          name: dahi-trime-apk
++          path: app/build/outputs/apk/release/*.apk
++          if-no-files-found: error
+diff --git a/README-DAHI.md b/README-DAHI.md
+new file mode 100755
+index 0000000..1dbabe8
+--- /dev/null
++++ b/README-DAHI.md
+@@ -0,0 +1,130 @@
++# 同文输入法大海版（自用版）
++
++基于 [osfans/trime](https://github.com/osfans/trime) **v3.3.12**（tag `v3.3.12`，commit `e09ac711`）的定制源码。
++
++- **应用名**：同文输入法大海版
++- **包名（applicationId）**：`com.osfans.trime.dahi`
++- **原生库 namespace**：仍为 `com.osfans.trime`（保证与原版共存，且不改动内部类名）
++- **Rime 用户数据目录**：`/storage/emulated/0/Android/data/com.osfans.trime.dahi/files/rime`
++  （由 `getExternalFilesDir(null)/rime` 自动得出，随包名变化）
++
++> 因包名不同，本版本可**与原版同文、CatTrime、BiBi 版共存安装**，互不覆盖。
++
++---
++
++## 一、相对原版 v3.3.12 的改动
++
++### 【1】剪切板 / 收藏夹
++- **文字搜索**：两个列表均支持按子串过滤（SQL `LIKE` + Room `PagingSource`，与分页协同）。
++  标题栏新增搜索按钮，点按展开输入框；退出即清空。
++- **自由拖动排序**：条目左侧新增拖拽把手，可上下拖动调整顺序并持久化
++  （新增 `orderIndex` 列 + 数据库迁移 4→5，排序统一为 `pinned DESC, orderIndex ASC, time DESC`）。
++- **收藏夹置顶**：把原本只在剪切板出现的「置顶/取消置顶」菜单项**同时**提供给收藏夹，
++  行为与剪切板完全一致（含右下角图钉指示）。
++- 为避免搜索时对子集重排打乱整体顺序，搜索状态下自动禁用拖动排序。
++
++> 搜索框位于输入法自身窗口内，普通 `EditText` 无法直接接收同文键盘的提交文本，
++> 因此新增 `ClipboardSearchBridge`：搜索激活时，把 Rime 提交的文本重定向到搜索框；
++> 未激活时完全不拦截（零影响）。退格键亦被重定向用于删除搜索内容。
++
++### 【2】配置页「备份与还原」（**加密**）
++- 位置：设置 → 配置 → **备份与还原**（可参照截图 1 的样式）。
++- **备份**：可选择「首选项 / 剪切板数据 / 收藏夹数据」，导出前需**设置密码**。
++- **还原**：选择备份文件 → 输入密码 → 选择要还原的项 → 应用（会覆盖所选数据，有确认提示）。
++- **加密设计（隐私保护）**：导出内容**绝不明文落盘**。文件为二进制加密格式：
++  ```
++  magic(8B "DAHIBAK1") | version(1B) | salt(16B) | iv(12B) | AES-256-GCM(ciphertext + 16B tag)
++  ```
++  - 密钥：用户密码经 **PBKDF2-HMAC-SHA256**（低版本回退 SHA1）派生，**200000** 次迭代，256 bit；
++  - 加密：**AES-256-GCM** 认证加密（防未授权读取 + 防篡改）；
++  - 即使备份文件被其它应用读取，也无法获得剪贴板/收藏夹/首选项明文。
++
++### 【3】「说点啥」语音输入联动
++在「常规」页新增 3 个开关（默认关闭，参照截图 2）：
++1. **说点啥AIDL语音输入** — 通过 AIDL 调用「说点啥」的语音识别（需在其内开启“允许外部输入法联动(AIDL)”）。
++2. **录音时暂停其他媒体** — 录音时申请音频焦点，请求其它应用降低音量/暂停播放。
++3. **工具栏麦克风按钮** — 在工具栏显示麦克风按钮：点按开始录音，再次点按停止并上屏。
++
++行为：**长按带语音功能的空格键**（主题中 `long_click` 映射为 `VOICE_ASSIST`）或**工具栏麦克风**均可触发；
++识别结果经 `onPartial/onFinal` 回填 / 上屏。AIDL 客户端复用「说点啥」官方对接协议
++（显式组件 `com.brycewg.asrkb[.pro]` / `com.brycewg.asrkb.api.ExternalSpeechService`，
++描述符 `com.brycewg.asrkb.aidl.IExternalSpeechService` / `ISpeechCallback`）。
++
++### 【4】共存包名 / 应用名
++见文首。改动仅涉及 `applicationId` 与应用名资源，`namespace` 保持不变，尽量不影响其它设置。
++
++---
++
++## 二、如何编译出 APK
++
++本仓库**不含预编译 APK**。用下面任一方式生成 APK：
++
++### 方式 A：GitHub Actions「最小补丁包」（★最省事，推荐）
++见 `github-actions-kit/使用说明.md`。只需在 GitHub 新建一个仓库、上传 **2 个文件**
++（`dahi.patch` + 工作流 yml），点一下按钮即可出 APK。补丁应用到上游 v3.3.12，
++其子模块由 Actions 原生拉取，最稳、最不容易出错。
++
++### 方式 B：GitHub Actions（推送本仓库全量源码）
++1. 把本项目推送到你自己的 GitHub 仓库（用 GitHub Desktop 或 git，注意保留 `.github/` 等隐藏文件）；
++2. 进入 **Actions → “Build Dahi Trime APK” → Run workflow**；
++3. 完成后在运行页面的 **Artifacts** 下载 `dahi-trime-apk`。
++   - 原生依赖由 `script/fetch-dahi-deps.sh` 按 v3.3.12 锁定版本自动拉取，**无需上传子模块**；
++   - 自动安装 CMake 3.31.6，并**自动生成自签名 keystore**，无需配置 Secrets。
++   - ⚠️ 若在 Windows 上解压源码：`app/data/rime/*` 与部分 `app/src/main/assets/shared/*`
++     是**符号链接**，Windows 解压可能丢失；这种情况请改用方式 A。
++
++### 方式 C：本机编译
++```bash
++# 依赖：JDK 25、Android SDK(build-tools 36 / platform 36)、
++#       NDK 28.0.13004108、CMake 3.31.6、git
++bash script/fetch-dahi-deps.sh        # 拉取原生依赖（代替 git submodule update）
++./build-dahi.sh                       # 或 BUILD_ABI=arm64-v8a ./build-dahi.sh
++# 产物：app/build/outputs/apk/release/*.apk
++```
++> 现代手机安装 `arm64-v8a` 版本。
++
++---
++
++## 三、改动文件一览（相对原版 v3.3.12）
++
++**新增**
++- `app/src/main/java/com/osfans/trime/link/`：`AsrkbSpeechClient.kt`、`AsrkbExternalInputSession.kt`、
++  `AsrkbRecordingAudioFocusController.kt`、`AsrkbVoiceHoldSessionController.kt`、
++  `VoiceOverlayUiBridge.kt`、`MicPermissionActivity.kt`
++- `app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt`
++- `app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchBridge.kt`
++- `app/src/main/java/com/osfans/trime/data/backup/`：`BackupData.kt`、`BackupCrypto.kt`、
++  `BackupManager.kt`、`BackupRestoreDialog.kt`
++- `app/src/main/res/values{,-zh-rCN,-zh-rTW}/strings_dahi_voice.xml`
++- `app/src/main/res/values{,-zh-rCN,-zh-rTW}/strings_dahi_clipboard.xml`
++- `app/src/main/res/values{,-zh-rCN,-zh-rTW}/strings_dahi_backup.xml`
++- `app/src/main/res/drawable/ic_baseline_mic_24.xml`、`ic_baseline_stop_24.xml`、
++  `ic_baseline_drag_handle_24.xml`
++- `build-dahi.sh`、`.github/workflows/build-dahi-apk.yml`、`README-DAHI.md`
++
++**修改**
++- `app/build.gradle.kts`（applicationId）
++- `app/src/main/res/values*/strings.xml`（应用名）
++- `app/src/main/AndroidManifest.xml`（麦克风权限、BiBi `<queries>`、`MicPermissionActivity`）
++- `data/prefs/AppPrefs.kt`（常规页 3 个开关）
++- `ime/bar/InputBarDelegate.kt`、`ime/bar/ui/AlwaysUi.kt`（工具栏麦克风按钮）
++- `ime/keyboard/KeyView.kt`、`KeyboardView.kt`、`KeyboardWindow.kt`（长按空格 / 录音浮层）
++- `ime/core/TrimeInputMethodService.kt`（语音生命周期钩子 + 搜索框文本重定向）
++- `ime/clipboard/*`（搜索、拖动排序、置顶）
++- `data/db/*`（orderIndex 列、迁移、查询）
++- `ui/main/settings/ProfileSettingsFragment.kt`（备份与还原入口）
++
++---
++
++## 四、已知限制 / 需要留意的点
++
++1. **未能本地编译验证**：受沙箱磁盘/内存限制，本次改动**未经编译**，首次在 Actions 构建时可能需少量编译修正
++   （多为 import / API 签名层面）。
++2. **AIDL 事务码为硬编码**，与本仓库参照的「说点啥」协议版本绑定；若实机端「说点啥」版本不同，调用可能失败
++   （已用 try/catch + 提示兜底）。
++3. **工具栏麦克风开关切换后**如未立即生效，请按提示在键盘样式中切换主题再切回以刷新（与原版按钮刷新机制一致）。
++4. 备份/还原为**整体覆盖**所选数据，请在还原前确认。
++5. 波形图为去除三方依赖后的自绘实现，外观与原 fork 略有差异。
++
++## 五、许可
++沿用上游 GPL-3.0-or-later。
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 395e00e..4a5630d 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -22,7 +22,8 @@ android {
+     buildToolsVersion = "36.0.0"
+ 
+     defaultConfig {
+-        applicationId = "com.osfans.trime"
++        // 共存包名：与原版同文（com.osfans.trime）可同时安装
++        applicationId = "com.osfans.trime.dahi"
+         minSdk = 21
+         targetSdk = 36
+         versionCode = 20260901
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index d0298d6..95ee344 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -10,7 +10,16 @@ SPDX-License-Identifier: GPL-3.0-or-later
+     xmlns:android="http://schemas.android.com/apk/res/android">
+     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+     <uses-permission android:name="android.permission.VIBRATE" />
++    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
++    <!-- 权限：访问说点啥外部语音服务（AIDL）（若目标包声明则需请求） -->
++    <uses-permission android:name="com.brycewg.asrkb.EXTERNAL_SPEECH" />
++    <uses-permission android:name="com.brycewg.asrkb.pro.EXTERNAL_SPEECH" />
++
++    <queries>
++        <package android:name="com.brycewg.asrkb" />
++        <package android:name="com.brycewg.asrkb.pro" />
++    </queries>
+ 
+     <application
+         android:name="com.osfans.trime.TrimeApplication"
+@@ -83,6 +92,11 @@ SPDX-License-Identifier: GPL-3.0-or-later
+             android:theme="@style/Theme.DialogTheme"
+             android:windowSoftInputMode="stateAlwaysVisible|adjustPan" />
+ 
++        <!-- 说点啥语音输入：从输入法场景触发麦克风运行时权限弹窗 -->
++        <activity
++            android:name=".link.MicPermissionActivity"
++            android:exported="false" />
++
+         <!-- Using an activity alias to disable/enable the app icon in the launcher -->
+         <activity-alias
+             android:name="com.osfans.trime.MainLauncherAlias"
+diff --git a/app/src/main/java/com/osfans/trime/data/backup/BackupCrypto.kt b/app/src/main/java/com/osfans/trime/data/backup/BackupCrypto.kt
+new file mode 100755
+index 0000000..273af55
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/data/backup/BackupCrypto.kt
+@@ -0,0 +1,101 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.data.backup
++
++import java.security.SecureRandom
++import javax.crypto.Cipher
++import javax.crypto.SecretKeyFactory
++import javax.crypto.spec.GCMParameterSpec
++import javax.crypto.spec.PBEKeySpec
++import javax.crypto.spec.SecretKeySpec
++
++/**
++ * 备份文件的加密封装。
++ *
++ * 文件格式（大端无关，按字节顺序）：
++ * ```
++ * magic(8B) | version(1B) | salt(16B) | iv(12B) | AES-GCM(ciphertext + 16B tag)
++ * ```
++ *
++ * - magic 固定为 `DAHIBAK1`，用于快速识别本版本导出的加密备份；
++ * - 密钥由用户密码经 PBKDF2-HMAC-SHA256（回退 SHA1）派生，迭代 200000 次，256 bit；
++ * - 内容使用 AES-256-GCM 认证加密，附带认证标签，可同时防篡改与防未授权读取。
++ *
++ * 说明：本实现**不导出任何明文**，从设计上避免剪贴板/收藏夹/首选项内容被其它应用随意读取。
++ */
++object BackupCrypto {
++    private const val MAGIC = "DAHIBAK1"
++    private const val VERSION: Byte = 1
++    private const val SALT_LEN = 16
++    private const val IV_LEN = 12
++    private const val TAG_BITS = 128
++    private const val ITERATIONS = 200_000
++    private const val KEY_BITS = 256
++    private const val TRANSFORMATION = "AES/GCM/NoPadding"
++
++    private val random = SecureRandom()
++
++    /** 文件头后偏移量：magic + version。 */
++    private val HEADER_LEN = MAGIC.length + 1
++
++    fun isEncrypted(data: ByteArray): Boolean =
++        data.size > HEADER_LEN + SALT_LEN + IV_LEN &&
++            String(data, 0, MAGIC.length, Charsets.US_ASCII) == MAGIC
++
++    fun encrypt(
++        plain: ByteArray,
++        password: CharArray,
++    ): ByteArray {
++        val salt = ByteArray(SALT_LEN).also { random.nextBytes(it) }
++        val iv = ByteArray(IV_LEN).also { random.nextBytes(it) }
++        val cipher = Cipher.getInstance(TRANSFORMATION)
++        cipher.init(Cipher.ENCRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(TAG_BITS, iv))
++        val cipherText = cipher.doFinal(plain)
++        return buildList {
++            add(MAGIC.toByteArray(Charsets.US_ASCII))
++            add(byteArrayOf(VERSION))
++            add(salt)
++            add(iv)
++            add(cipherText)
++        }.fold(ByteArray(0)) { acc, bytes -> acc + bytes }
++    }
++
++    fun decrypt(
++        data: ByteArray,
++        password: CharArray,
++    ): ByteArray {
++        require(isEncrypted(data)) { "Not a DAHI encrypted backup file" }
++        var offset = MAGIC.length
++        val fileVersion = data[offset]
++        offset += 1
++        require(fileVersion <= VERSION) { "Unsupported backup version: $fileVersion" }
++        val salt = data.copyOfRange(offset, offset + SALT_LEN)
++        offset += SALT_LEN
++        val iv = data.copyOfRange(offset, offset + IV_LEN)
++        offset += IV_LEN
++        val cipherText = data.copyOfRange(offset, data.size)
++        val cipher = Cipher.getInstance(TRANSFORMATION)
++        cipher.init(Cipher.DECRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(TAG_BITS, iv))
++        return cipher.doFinal(cipherText)
++    }
++
++    private fun deriveKey(
++        password: CharArray,
++        salt: ByteArray,
++    ): SecretKeySpec {
++        // PBKDF2WithHmacSHA256 自 Android 8.0 起可用；更低版本回退到 SHA1。
++        val factory =
++            runCatching { SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256") }
++                .getOrElse { SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1") }
++        val spec = PBEKeySpec(password, salt, ITERATIONS, KEY_BITS)
++        return try {
++            SecretKeySpec(factory.generateSecret(spec).encoded, "AES")
++        } finally {
++            spec.clearPassword()
++        }
++    }
++}
+diff --git a/app/src/main/java/com/osfans/trime/data/backup/BackupData.kt b/app/src/main/java/com/osfans/trime/data/backup/BackupData.kt
+new file mode 100755
+index 0000000..2afc7d1
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/data/backup/BackupData.kt
+@@ -0,0 +1,50 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.data.backup
++
++import kotlinx.serialization.Serializable
++import kotlinx.serialization.json.JsonElement
++
++/**
++ * 备份数据模型。
++ *
++ * 出于隐私考虑，序列化后的明文 JSON 在落盘/导出前会整体加密（见 [BackupCrypto]），
++ * 因此磁盘上的备份文件不会以明文形式暴露剪贴板、收藏夹或首选项内容。
++ */
++@Serializable
++data class BackupData(
++    val format: String = FORMAT,
++    val version: Int = CURRENT_VERSION,
++    val timestamp: Long = System.currentTimeMillis(),
++    val appVersion: String? = null,
++    val preferences: Map<String, BackupPreference>? = null,
++    val clipboard: List<BackupBean>? = null,
++    val collection: List<BackupBean>? = null,
++) {
++    companion object {
++        const val FORMAT = "dahi-trime-backup"
++        const val CURRENT_VERSION = 1
++    }
++}
++
++/** 单条偏好设置：[type] 为存储类型名，[value] 为对应的 JSON 值。 */
++@Serializable
++data class BackupPreference(
++    val type: String,
++    val value: JsonElement,
++)
++
++/** 剪贴板/收藏夹条目。 */
++@Serializable
++data class BackupBean(
++    val text: String? = null,
++    val html: String? = null,
++    val type: String = "TEXT",
++    val time: Long = 0L,
++    val pinned: Boolean = false,
++    val orderIndex: Int = 0,
++)
+diff --git a/app/src/main/java/com/osfans/trime/data/backup/BackupManager.kt b/app/src/main/java/com/osfans/trime/data/backup/BackupManager.kt
+new file mode 100755
+index 0000000..5f1c8e4
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/data/backup/BackupManager.kt
+@@ -0,0 +1,124 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.data.backup
++
++import androidx.core.content.edit
++import androidx.preference.PreferenceManager
++import com.osfans.trime.BuildConfig
++import com.osfans.trime.data.db.ClipboardHelper
++import com.osfans.trime.data.db.CollectionHelper
++import com.osfans.trime.data.db.DatabaseBean
++import com.osfans.trime.util.appContext
++import kotlinx.serialization.encodeToString
++import kotlinx.serialization.json.Json
++import kotlinx.serialization.json.JsonArray
++import kotlinx.serialization.json.JsonPrimitive
++import kotlinx.serialization.json.boolean
++import kotlinx.serialization.json.contentOrNull
++import kotlinx.serialization.json.float
++import kotlinx.serialization.json.int
++import kotlinx.serialization.json.jsonArray
++import kotlinx.serialization.json.jsonPrimitive
++import kotlinx.serialization.json.long
++
++/**
++ * 备份/还原的核心逻辑：收集首选项、剪贴板与收藏夹数据，并以加密方式编码/解码。
++ */
++object BackupManager {
++    private val json =
++        Json {
++            prettyPrint = true
++            encodeDefaults = true
++            ignoreUnknownKeys = true
++        }
++
++    suspend fun createBackup(
++        includePreferences: Boolean,
++        includeClipboard: Boolean,
++        includeCollection: Boolean,
++    ): BackupData =
++        BackupData(
++            timestamp = System.currentTimeMillis(),
++            appVersion = BuildConfig.BUILD_VERSION_NAME,
++            preferences = if (includePreferences) exportPreferences() else null,
++            clipboard = if (includeClipboard) ClipboardHelper.exportBeans().map { it.toBackupBean() } else null,
++            collection = if (includeCollection) CollectionHelper.exportBeans().map { it.toBackupBean() } else null,
++        )
++
++    fun encode(
++        data: BackupData,
++        password: CharArray,
++    ): ByteArray = BackupCrypto.encrypt(json.encodeToString(data).toByteArray(Charsets.UTF_8), password)
++
++    fun decode(
++        bytes: ByteArray,
++        password: CharArray,
++    ): BackupData = json.decodeFromString(BackupCrypto.decrypt(bytes, password).toString(Charsets.UTF_8))
++
++    suspend fun applyBackup(
++        data: BackupData,
++        restorePreferences: Boolean,
++        restoreClipboard: Boolean,
++        restoreCollection: Boolean,
++    ) {
++        if (restorePreferences) data.preferences?.let { importPreferences(it) }
++        if (restoreClipboard) data.clipboard?.let { beans -> ClipboardHelper.restoreBeans(beans.map { it.toBean() }) }
++        if (restoreCollection) data.collection?.let { beans -> CollectionHelper.restoreBeans(beans.map { it.toBean() }) }
++    }
++
++    private fun exportPreferences(): Map<String, BackupPreference> {
++        val shared = PreferenceManager.getDefaultSharedPreferences(appContext)
++        val result = linkedMapOf<String, BackupPreference>()
++        shared.all.forEach { (key, value) ->
++            when (value) {
++                is Boolean -> result[key] = BackupPreference("BOOLEAN", JsonPrimitive(value))
++                is Int -> result[key] = BackupPreference("INT", JsonPrimitive(value))
++                is Long -> result[key] = BackupPreference("LONG", JsonPrimitive(value))
++                is Float -> result[key] = BackupPreference("FLOAT", JsonPrimitive(value))
++                is String -> result[key] = BackupPreference("STRING", JsonPrimitive(value))
++                is Set<*> ->
++                    result[key] =
++                        BackupPreference("STRING_SET", JsonArray(value.map { JsonPrimitive(it.toString()) }))
++            }
++        }
++        return result
++    }
++
++    private fun importPreferences(preferences: Map<String, BackupPreference>) {
++        val shared = PreferenceManager.getDefaultSharedPreferences(appContext)
++        shared.edit {
++            preferences.forEach { (key, pref) ->
++                runCatching {
++                    when (pref.type) {
++                        "BOOLEAN" -> putBoolean(key, pref.value.jsonPrimitive.boolean)
++                        "INT" -> putInt(key, pref.value.jsonPrimitive.int)
++                        "LONG" -> putLong(key, pref.value.jsonPrimitive.long)
++                        "FLOAT" -> putFloat(key, pref.value.jsonPrimitive.float)
++                        "STRING" -> putString(key, pref.value.jsonPrimitive.contentOrNull)
++                        "STRING_SET" ->
++                            putStringSet(
++                                key,
++                                pref.value.jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull }.toSet(),
++                            )
++                    }
++                }
++            }
++        }
++    }
++
++    private fun DatabaseBean.toBackupBean() = BackupBean(text, html, type.name, time, pinned, orderIndex)
++
++    private fun BackupBean.toBean() =
++        DatabaseBean(
++            text = text,
++            html = html,
++            type = runCatching { DatabaseBean.BeanType.valueOf(type) }.getOrDefault(DatabaseBean.BeanType.TEXT),
++            time = time,
++            pinned = pinned,
++            orderIndex = orderIndex,
++        )
++}
+diff --git a/app/src/main/java/com/osfans/trime/data/backup/BackupRestoreDialog.kt b/app/src/main/java/com/osfans/trime/data/backup/BackupRestoreDialog.kt
+new file mode 100755
+index 0000000..1afb760
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/data/backup/BackupRestoreDialog.kt
+@@ -0,0 +1,281 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.data.backup
++
++import android.net.Uri
++import android.text.InputType
++import android.view.ViewGroup
++import android.widget.EditText
++import android.widget.FrameLayout
++import androidx.activity.result.ActivityResultLauncher
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.annotation.StringRes
++import androidx.appcompat.app.AlertDialog
++import androidx.fragment.app.Fragment
++import androidx.lifecycle.lifecycleScope
++import com.osfans.trime.R
++import com.osfans.trime.ui.common.withLoadingDialog
++import com.osfans.trime.util.toast
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++
++/**
++ * 设置页「备份与还原」的交互入口。
++ *
++ * 备份文件始终为加密格式（见 [BackupCrypto]），导出前需由用户设置密码；
++ * 还原时需输入密码解密。任何情况下都不会导出明文。
++ */
++class BackupRestoreDialog(
++    private val fragment: Fragment,
++) {
++    companion object {
++        private const val MIME = "application/octet-stream"
++    }
++
++    private lateinit var saveLauncher: ActivityResultLauncher<String>
++    private lateinit var openLauncher: ActivityResultLauncher<Array<String>>
++
++    private var backupInProgress = false
++    private var restoreInProgress = false
++
++    /** 已加密、待写入用户所选文件的字节。 */
++    private var pendingBackupBytes: ByteArray? = null
++
++    fun setupLaunchers() {
++        saveLauncher =
++            fragment.registerForActivityResult(ActivityResultContracts.CreateDocument(MIME)) { uri ->
++                if (uri != null) handleBackupSave(uri)
++            }
++        openLauncher =
++            fragment.registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
++                if (uri != null) handleRestoreOpen(uri)
++            }
++    }
++
++    fun showBackupDialog() {
++        if (backupInProgress) return
++        val ctx = fragment.requireContext()
++        val items =
++            arrayOf(
++                ctx.getString(R.string.dahi_backup_pref),
++                ctx.getString(R.string.dahi_backup_clipboard),
++                ctx.getString(R.string.dahi_backup_collection),
++            )
++        val checked = booleanArrayOf(true, true, true)
++        AlertDialog
++            .Builder(ctx)
++            .setTitle(R.string.dahi_backup_select_items)
++            .setMultiChoiceItems(items, checked) { _, which, isChecked ->
++                checked[which] = isChecked
++            }.setNegativeButton(android.R.string.cancel, null)
++            .setPositiveButton(android.R.string.ok) { _, _ ->
++                if (!checked.any { it }) {
++                    ctx.toast(R.string.dahi_backup_empty_selection)
++                    return@setPositiveButton
++                }
++                askPassword(R.string.dahi_backup_set_password) { password ->
++                    performBackup(checked[0], checked[1], checked[2], password)
++                }
++            }.show()
++    }
++
++    fun showRestoreDialog() {
++        if (restoreInProgress) return
++        openLauncher.launch(arrayOf(MIME, "application/octet-stream", "*/*"))
++    }
++
++    private fun performBackup(
++        includePreferences: Boolean,
++        includeClipboard: Boolean,
++        includeCollection: Boolean,
++        password: CharArray,
++    ) {
++        if (backupInProgress) return
++        backupInProgress = true
++        val ctx = fragment.requireContext()
++        fragment.lifecycleScope.launch {
++            var encrypted: ByteArray? = null
++            runCatching {
++                withLoadingDialog(ctx) {
++                    withContext(Dispatchers.IO) {
++                        val data =
++                            BackupManager.createBackup(
++                                includePreferences = includePreferences,
++                                includeClipboard = includeClipboard,
++                                includeCollection = includeCollection,
++                            )
++                        encrypted = BackupManager.encode(data, password)
++                    }
++                }
++            }
++            val bytes = encrypted
++            if (bytes == null) {
++                ctx.toast(R.string.dahi_backup_failure)
++                backupInProgress = false
++                return@launch
++            }
++            pendingBackupBytes = bytes
++            saveLauncher.launch("trime_dahi_backup_${System.currentTimeMillis()}.dahibak")
++        }
++    }
++
++    private fun handleBackupSave(uri: Uri) {
++        val data = pendingBackupBytes
++        pendingBackupBytes = null
++        val ctx = fragment.requireContext()
++        if (data == null) {
++            ctx.toast(R.string.dahi_backup_failure)
++            backupInProgress = false
++            return
++        }
++        fragment.lifecycleScope.launch {
++            val ok =
++                withContext(Dispatchers.IO) {
++                    runCatching {
++                        ctx.contentResolver.openOutputStream(uri)?.use { it.write(data) }
++                            ?: error("No output stream for uri")
++                    }.isSuccess
++                }
++            ctx.toast(if (ok) R.string.dahi_backup_success else R.string.dahi_backup_failure)
++            backupInProgress = false
++        }
++    }
++
++    private fun handleRestoreOpen(uri: Uri) {
++        if (restoreInProgress) return
++        val ctx = fragment.requireContext()
++        fragment.lifecycleScope.launch {
++            val bytes =
++                withContext(Dispatchers.IO) {
++                    runCatching {
++                        ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
++                    }.getOrNull()
++                }
++            if (bytes == null || bytes.isEmpty() || !BackupCrypto.isEncrypted(bytes)) {
++                ctx.toast(R.string.dahi_restore_invalid_file)
++                return@launch
++            }
++            askPassword(R.string.dahi_backup_enter_password) { password ->
++                performRestore(bytes, password)
++            }
++        }
++    }
++
++    private fun performRestore(
++        bytes: ByteArray,
++        password: CharArray,
++    ) {
++        restoreInProgress = true
++        val ctx = fragment.requireContext()
++        fragment.lifecycleScope.launch {
++            var decoded: BackupData? = null
++            runCatching {
++                withLoadingDialog(ctx) {
++                    withContext(Dispatchers.IO) {
++                        decoded = BackupManager.decode(bytes, password)
++                    }
++                }
++            }
++            val data = decoded
++            if (data == null) {
++                ctx.toast(R.string.dahi_restore_wrong_password)
++                restoreInProgress = false
++                return@launch
++            }
++            showRestoreItems(data)
++        }
++    }
++
++    private fun showRestoreItems(data: BackupData) {
++        val ctx = fragment.requireContext()
++        val items =
++            arrayOf(
++                ctx.getString(R.string.dahi_backup_pref),
++                ctx.getString(R.string.dahi_backup_clipboard),
++                ctx.getString(R.string.dahi_backup_collection),
++            )
++        val available =
++            booleanArrayOf(
++                data.preferences != null,
++                data.clipboard != null,
++                data.collection != null,
++            )
++        val checked = available.copyOf()
++        AlertDialog
++            .Builder(ctx)
++            .setTitle(R.string.dahi_restore_select_items)
++            .setMessage(R.string.dahi_restore_replace_warning)
++            .setMultiChoiceItems(items, checked) { _, which, isChecked ->
++                checked[which] = isChecked
++            }.setNegativeButton(android.R.string.cancel, null)
++            .setPositiveButton(android.R.string.ok) { _, _ ->
++                val restorePref = checked[0] && available[0]
++                val restoreClip = checked[1] && available[1]
++                val restoreColl = checked[2] && available[2]
++                if (!(restorePref || restoreClip || restoreColl)) {
++                    ctx.toast(R.string.dahi_backup_empty_selection)
++                    return@setPositiveButton
++                }
++                applyRestore(data, restorePref, restoreClip, restoreColl)
++            }.show()
++    }
++
++    private fun applyRestore(
++        data: BackupData,
++        restorePreferences: Boolean,
++        restoreClipboard: Boolean,
++        restoreCollection: Boolean,
++    ) {
++        val ctx = fragment.requireContext()
++        fragment.lifecycleScope.launch {
++            val ok =
++                runCatching {
++                    withLoadingDialog(ctx) {
++                        withContext(Dispatchers.IO) {
++                            BackupManager.applyBackup(data, restorePreferences, restoreClipboard, restoreCollection)
++                        }
++                    }
++                }.isSuccess
++            ctx.toast(if (ok) R.string.dahi_restore_success else R.string.dahi_restore_failure)
++            restoreInProgress = false
++        }
++    }
++
++    private fun askPassword(
++        @StringRes title: Int,
++        onPassword: (CharArray) -> Unit,
++    ) {
++        val ctx = fragment.requireContext()
++        val input =
++            EditText(ctx).apply {
++                inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
++                hint = ctx.getString(R.string.dahi_backup_password_hint)
++                setSingleLine()
++            }
++        val margin = (24 * ctx.resources.displayMetrics.density).toInt()
++        val container =
++            FrameLayout(ctx).apply {
++                addView(
++                    input,
++                    FrameLayout.LayoutParams(
++                        ViewGroup.LayoutParams.MATCH_PARENT,
++                        ViewGroup.LayoutParams.WRAP_CONTENT,
++                    ).apply { setMargins(margin, 0, margin, 0) },
++                )
++            }
++        AlertDialog
++            .Builder(ctx)
++            .setTitle(title)
++            .setView(container)
++            .setNegativeButton(android.R.string.cancel, null)
++            .setPositiveButton(android.R.string.ok) { _, _ ->
++                val text = input.text?.toString().orEmpty()
++                if (text.isNotEmpty()) onPassword(text.toCharArray())
++            }.show()
++    }
++}
+diff --git a/app/src/main/java/com/osfans/trime/data/db/ClipboardHelper.kt b/app/src/main/java/com/osfans/trime/data/db/ClipboardHelper.kt
+index 0c0bfa8..b2b4d2c 100644
+--- a/app/src/main/java/com/osfans/trime/data/db/ClipboardHelper.kt
++++ b/app/src/main/java/com/osfans/trime/data/db/ClipboardHelper.kt
+@@ -102,7 +102,7 @@ object ClipboardHelper :
+         clbDb =
+             Room
+                 .databaseBuilder(context, Database::class.java, "clipboard.db")
+-                .addMigrations(Database.MIGRATION_3_4)
++                .addMigrations(Database.MIGRATION_3_4, Database.MIGRATION_4_5)
+                 .build()
+         clbDao = clbDb.databaseDao()
+         enabledListener.onChange(enabledPref.key, enabledPref.getValue())
+@@ -118,6 +118,30 @@ object ClipboardHelper :
+ 
+     fun allBeans() = clbDao.allBeans()
+ 
++    /** 导出全部条目（用于加密备份）。 */
++    suspend fun exportBeans(): List<DatabaseBean> = clbDao.getAll()
++
++    /** 用备份数据整体替换当前条目（还原）。 */
++    suspend fun restoreBeans(beans: List<DatabaseBean>) {
++        clbDb.withTransaction {
++            clbDao.deleteAll()
++            clbDao.insertAll(beans)
++        }
++        updateItemCount()
++    }
++
++    fun searchBeans(query: String) = clbDao.searchBeans(query)
++
++    /**
++     * 持久化手动排序结果，[beans] 需按目标顺序排列，
++     * 其 orderIndex 以列表下标重新写入数据库。
++     */
++    suspend fun updateOrder(beans: List<DatabaseBean>) {
++        clbDb.withTransaction {
++            beans.forEach { clbDao.updateOrderIndex(it.id, it.orderIndex) }
++        }
++    }
++
+     suspend fun pin(id: Int) = clbDao.updatePinned(id, true)
+ 
+     suspend fun unpin(id: Int) = clbDao.updatePinned(id, false)
+diff --git a/app/src/main/java/com/osfans/trime/data/db/CollectionHelper.kt b/app/src/main/java/com/osfans/trime/data/db/CollectionHelper.kt
+index 3deaa1d..2dda893 100644
+--- a/app/src/main/java/com/osfans/trime/data/db/CollectionHelper.kt
++++ b/app/src/main/java/com/osfans/trime/data/db/CollectionHelper.kt
+@@ -28,7 +28,7 @@ object CollectionHelper : CoroutineScope by CoroutineScope(SupervisorJob() + Dis
+         cltDb =
+             Room
+                 .databaseBuilder(context, Database::class.java, "collection.db")
+-                .addMigrations(Database.MIGRATION_3_4)
++                .addMigrations(Database.MIGRATION_3_4, Database.MIGRATION_4_5)
+                 .build()
+         cltDao = cltDb.databaseDao()
+     }
+@@ -41,6 +41,26 @@ object CollectionHelper : CoroutineScope by CoroutineScope(SupervisorJob() + Dis
+ 
+     fun allBeans() = cltDao.allBeans()
+ 
++    /** 导出全部条目（用于加密备份）。 */
++    suspend fun exportBeans(): List<DatabaseBean> = cltDao.getAll()
++
++    /** 用备份数据整体替换当前条目（还原）。 */
++    suspend fun restoreBeans(beans: List<DatabaseBean>) {
++        cltDb.withTransaction {
++            cltDao.deleteAll()
++            cltDao.insertAll(beans)
++        }
++    }
++
++    fun searchBeans(query: String) = cltDao.searchBeans(query)
++
++    /** 持久化手动排序结果，[beans] 需按目标顺序排列。 */
++    suspend fun updateOrder(beans: List<DatabaseBean>) {
++        cltDb.withTransaction {
++            beans.forEach { cltDao.updateOrderIndex(it.id, it.orderIndex) }
++        }
++    }
++
+     suspend fun pin(id: Int) = cltDao.updatePinned(id, true)
+ 
+     suspend fun unpin(id: Int) = cltDao.updatePinned(id, false)
+diff --git a/app/src/main/java/com/osfans/trime/data/db/Database.kt b/app/src/main/java/com/osfans/trime/data/db/Database.kt
+index d72efe9..e7e5cc6 100644
+--- a/app/src/main/java/com/osfans/trime/data/db/Database.kt
++++ b/app/src/main/java/com/osfans/trime/data/db/Database.kt
+@@ -10,7 +10,7 @@ import androidx.room.TypeConverters
+ import androidx.room.migration.Migration
+ import androidx.sqlite.db.SupportSQLiteDatabase
+ 
+-@Database(entities = [DatabaseBean::class], version = 4)
++@Database(entities = [DatabaseBean::class], version = 5)
+ @TypeConverters(DatabaseBean.Converters::class)
+ abstract class Database : RoomDatabase() {
+     abstract fun databaseDao(): DatabaseDao
+@@ -44,5 +44,18 @@ abstract class Database : RoomDatabase() {
+                     }
+                 }
+             }
++
++        val MIGRATION_4_5 =
++            object : Migration(4, 5) {
++                override fun migrate(database: SupportSQLiteDatabase) {
++                    if (database.needUpgrade(5)) {
++                        // 新增手动排序索引列；既有数据默认 0，回落到 time DESC，保持原有排序。
++                        database.execSQL(
++                            "ALTER TABLE ${DatabaseBean.TABLE_NAME} " +
++                                "ADD COLUMN orderIndex INTEGER NOT NULL DEFAULT 0",
++                        )
++                    }
++                }
++            }
+     }
+ }
+diff --git a/app/src/main/java/com/osfans/trime/data/db/DatabaseBean.kt b/app/src/main/java/com/osfans/trime/data/db/DatabaseBean.kt
+index ccd8f18..3970f01 100644
+--- a/app/src/main/java/com/osfans/trime/data/db/DatabaseBean.kt
++++ b/app/src/main/java/com/osfans/trime/data/db/DatabaseBean.kt
+@@ -20,6 +20,11 @@ data class DatabaseBean(
+     val type: BeanType = BeanType.TEXT,
+     val time: Long = System.currentTimeMillis(),
+     val pinned: Boolean = false,
++    /**
++     * 手动排序索引（自由排序）。默认 0，此时回落到按 [time] 降序排列；
++     * 排序规则统一为 `pinned DESC, orderIndex ASC, time DESC`。
++     */
++    val orderIndex: Int = 0,
+ ) {
+     companion object {
+         const val TABLE_NAME = "t_data"
+diff --git a/app/src/main/java/com/osfans/trime/data/db/DatabaseDao.kt b/app/src/main/java/com/osfans/trime/data/db/DatabaseDao.kt
+index d643496..ebfce73 100644
+--- a/app/src/main/java/com/osfans/trime/data/db/DatabaseDao.kt
++++ b/app/src/main/java/com/osfans/trime/data/db/DatabaseDao.kt
+@@ -38,6 +38,12 @@ interface DatabaseDao {
+         timestamp: Long,
+     )
+ 
++    @Query("UPDATE ${DatabaseBean.TABLE_NAME} SET orderIndex=:orderIndex WHERE id=:id")
++    suspend fun updateOrderIndex(
++        id: Int,
++        orderIndex: Int,
++    )
++
+     @Delete
+     suspend fun delete(bean: DatabaseBean)
+ 
+@@ -59,9 +65,12 @@ interface DatabaseDao {
+     @Query("DELETE FROM ${DatabaseBean.TABLE_NAME} WHERE time<:timestamp AND pinned=0")
+     suspend fun deletedUnpinnedEarlierThan(timestamp: Long)
+ 
+-    @Query("SELECT * FROM ${DatabaseBean.TABLE_NAME} ORDER BY pinned DESC, time DESC")
++    @Query("SELECT * FROM ${DatabaseBean.TABLE_NAME} ORDER BY pinned DESC, orderIndex ASC, time DESC")
+     fun allBeans(): PagingSource<Int, DatabaseBean>
+ 
++    @Query("SELECT * FROM ${DatabaseBean.TABLE_NAME} WHERE text LIKE '%' || :query || '%' ORDER BY pinned DESC, orderIndex ASC, time DESC")
++    fun searchBeans(query: String): PagingSource<Int, DatabaseBean>
++
+     @Query("SELECT * FROM ${DatabaseBean.TABLE_NAME} WHERE id=:id LIMIT 1")
+     suspend fun get(id: Int): DatabaseBean?
+ 
+@@ -79,4 +88,10 @@ interface DatabaseDao {
+ 
+     @Query("SELECT COUNT(*) FROM ${DatabaseBean.TABLE_NAME}")
+     suspend fun itemCount(): Int
++
++    @Query("SELECT * FROM ${DatabaseBean.TABLE_NAME} ORDER BY pinned DESC, orderIndex ASC, time DESC")
++    suspend fun getAll(): List<DatabaseBean>
++
++    @Insert
++    suspend fun insertAll(beans: List<DatabaseBean>)
+ }
+diff --git a/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt b/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
+index 4ae2758..7b00428 100644
+--- a/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
++++ b/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
+@@ -95,12 +95,36 @@ class AppPrefs(
+             const val ASCII_SWITCH_TIPS = "ascii_switch_tips"
+             const val INLINE_SUGGESTIONS = "inline_suggestions"
+             const val PREFERRED_VOICE_INPUT = "preferred_voice_input"
++            const val BIBI_AIDL_VOICE_ENABLED = "bibi_aidl_voice_enabled"
++            const val BIBI_PAUSE_MEDIA_WHILE_RECORDING = "bibi_pause_media_while_recording"
++            const val BIBI_TOOLBAR_MIC_BUTTON = "bibi_toolbar_mic_button"
+         }
+ 
+         val inlinePreeditMode = enum(R.string.inline_preedit_mode, INLINE_PREEDIT_MODE, InlinePreeditMode.DISABLE)
+         val asciiSwitchTips = switch(R.string.ascii_switch_tips, ASCII_SWITCH_TIPS, true)
+         val inlineSuggestions = switch(R.string.inline_suggestions, INLINE_SUGGESTIONS, true)
+ 
++        val bibiAidlVoiceEnabled = switch(
++            R.string.asrkb_aidl_voice_input,
++            BIBI_AIDL_VOICE_ENABLED,
++            false,
++            R.string.asrkb_aidl_voice_input_summary,
++        )
++        val bibiPauseMediaWhileRecording = switch(
++            R.string.asrkb_duck_media_on_record,
++            BIBI_PAUSE_MEDIA_WHILE_RECORDING,
++            false,
++            R.string.asrkb_duck_media_on_record_summary,
++            enableUiOn = { bibiAidlVoiceEnabled.getValue() },
++        )
++        val bibiToolbarMicButton = switch(
++            R.string.asrkb_aidl_voice_toolbar_button,
++            BIBI_TOOLBAR_MIC_BUTTON,
++            false,
++            R.string.asrkb_aidl_voice_toolbar_button_summary,
++            enableUiOn = { bibiAidlVoiceEnabled.getValue() },
++        )
++
+         val preferredVoiceInput = list(
+             R.string.preferred_voice_input,
+             PREFERRED_VOICE_INPUT,
+diff --git a/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt b/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
+index 4860737..f6ee70a 100644
+--- a/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
++++ b/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
+@@ -43,6 +43,8 @@ import com.osfans.trime.ime.keyboard.KeyboardWindow
+ import com.osfans.trime.ime.switches.SwitchOptionWindow
+ import com.osfans.trime.ime.window.BoardWindow
+ import com.osfans.trime.ime.window.BoardWindowManager
++import com.osfans.trime.link.AsrkbSpeechClient
++import com.osfans.trime.link.AsrkbVoiceHoldSessionController
+ import com.osfans.trime.ui.main.ClipEditActivity
+ import com.osfans.trime.util.AppUtils
+ import kotlinx.coroutines.Job
+@@ -68,6 +70,7 @@ class InputBarDelegate : InputBroadcastReceiver {
+     private val commonKeyboardActionListener: CommonKeyboardActionListener by di.instance()
+     private val candidate: CompactCandidateDelegate by di.instance()
+     private val rime: RimeSession by di.instance()
++    private val keyboardWindow: KeyboardWindow by di.instance()
+ 
+     val themedHeight = theme.generalStyle.run { candidateViewHeight + commentHeight }
+ 
+@@ -79,6 +82,25 @@ class InputBarDelegate : InputBroadcastReceiver {
+ 
+     private val clipboardSuggestionTimeout by prefs.clipboard.clipboardSuggestionTimeout
+ 
++    private val asrkbVoiceHoldController by lazy {
++        AsrkbVoiceHoldSessionController(
++            service = service,
++            showOverlay = { keyboardWindow.showAsrkbVoiceOverlay() },
++            startWave = { keyboardWindow.startAsrkbVoiceOverlayWave() },
++            updateAmplitude = { amplitude -> keyboardWindow.updateAsrkbVoiceOverlayAmplitude(amplitude) },
++            hideOverlay = { keyboardWindow.hideAsrkbVoiceOverlay() },
++            onSessionFinished = {
++                alwaysUi.asrkbVoiceButton.setIcon(R.drawable.ic_baseline_mic_24)
++            },
++        )
++    }
++
++    private val bibiAidlVoiceEnabled by prefs.general.bibiAidlVoiceEnabled
++
++    private val bibiToolbarMicButton by prefs.general.bibiToolbarMicButton
++
++    private var asrkbHoldingChangedListener: ((Boolean) -> Unit)? = null
++
+     private var clipboardTimeoutJob: Job? = null
+ 
+     private var isClipboardFresh: Boolean = false
+@@ -156,6 +178,33 @@ class InputBarDelegate : InputBroadcastReceiver {
+             clipboardUi.dismiss.setOnClickListener {
+                 dismissClipboardSuggestion()
+             }
++            asrkbVoiceButton.apply {
++                if (bibiAidlVoiceEnabled && bibiToolbarMicButton) {
++                    visibility = View.VISIBLE
++                    setIcon(if (AsrkbSpeechClient.isHolding()) R.drawable.ic_baseline_stop_24 else R.drawable.ic_baseline_mic_24)
++                } else {
++                    visibility = View.GONE
++                }
++                setOnClickListener {
++                    if (AsrkbSpeechClient.isHolding()) {
++                        stopAsrkbVoiceFromToolbar()
++                        return@setOnClickListener
++                    }
++                    if (!(bibiAidlVoiceEnabled && bibiToolbarMicButton)) return@setOnClickListener
++                    startAsrkbVoiceFromToolbar()
++                }
++            }
++
++            val executor = ContextCompat.getMainExecutor(service)
++            val holdingListener: (Boolean) -> Unit = { holding ->
++                executor.execute {
++                    if (!asrkbVoiceButton.isAttachedToWindow) return@execute
++                    if (asrkbVoiceButton.visibility != View.VISIBLE) return@execute
++                    asrkbVoiceButton.setIcon(if (holding) R.drawable.ic_baseline_stop_24 else R.drawable.ic_baseline_mic_24)
++                }
++            }
++            asrkbHoldingChangedListener = holdingListener
++            AsrkbSpeechClient.onHoldingChanged = holdingListener
+         }
+     }
+ 
+@@ -259,6 +308,20 @@ class InputBarDelegate : InputBroadcastReceiver {
+             evalAlwaysUiState()
+             ClipboardHelper.addOnUpdateListener(onClipboardUpdateListener)
+             syncToolbarOptionStates()
++
++            addOnAttachStateChangeListener(
++                object : View.OnAttachStateChangeListener {
++                    override fun onViewAttachedToWindow(v: View) {}
++
++                    override fun onViewDetachedFromWindow(v: View) {
++                        val listener = asrkbHoldingChangedListener
++                        if (listener != null && AsrkbSpeechClient.onHoldingChanged === listener) {
++                            AsrkbSpeechClient.onHoldingChanged = null
++                        }
++                        asrkbHoldingChangedListener = null
++                    }
++                },
++            )
+         }
+     }
+ 
+@@ -357,4 +420,13 @@ class InputBarDelegate : InputBroadcastReceiver {
+     override fun onRimeOptionUpdated(value: RimeMessage.OptionMessage.Data) {
+         alwaysUi.updateButtonsStyle(value.option, value.value)
+     }
++
++    private fun startAsrkbVoiceFromToolbar() {
++        alwaysUi.asrkbVoiceButton.setIcon(R.drawable.ic_baseline_stop_24)
++        asrkbVoiceHoldController.start()
++    }
++
++    private fun stopAsrkbVoiceFromToolbar() {
++        asrkbVoiceHoldController.stop()
++    }
+ }
+diff --git a/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt b/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
+index e81e517..37ea0d3 100644
+--- a/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
++++ b/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
+@@ -6,6 +6,7 @@
+ package com.osfans.trime.ime.bar.ui
+ 
+ import android.content.Context
++import android.view.View
+ import android.widget.ViewAnimator
+ import androidx.annotation.DrawableRes
+ import androidx.constraintlayout.widget.ConstraintLayout
+@@ -68,6 +69,10 @@ class AlwaysUi(
+     val inlineSuggestionsUi = InlineSuggestionsUi(ctx)
+ 
+     val hideKeyboardButton = ToolButton(ctx, R.drawable.ic_baseline_arrow_drop_down_24)
++    val asrkbVoiceButton =
++        ToolButton(ctx, R.drawable.ic_baseline_mic_24).apply {
++            visibility = View.GONE
++        }
+     private val rightMostButton =
+         ViewAnimator(ctx).apply {
+             add(hideKeyboardButton, lParams(matchParent, matchParent))
+@@ -104,11 +109,18 @@ class AlwaysUi(
+                 centerVertically()
+             },
+         )
++        add(
++            asrkbVoiceButton,
++            lParams(rightWidth, rightHeight) {
++                before(rightMostButton)
++                centerVertically()
++            },
++        )
+         add(
+             animator,
+             lParams(matchConstraints, matchParent) {
+                 after(leftMostButton)
+-                before(rightMostButton)
++                before(asrkbVoiceButton)
+                 endOfParent()
+                 centerVertically()
+             },
+diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardAdapter.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardAdapter.kt
+index 8fb052a..65d3ba5 100644
+--- a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardAdapter.kt
++++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardAdapter.kt
+@@ -6,8 +6,10 @@
+ package com.osfans.trime.ime.clipboard
+ 
+ import android.os.Build
++import android.view.MotionEvent
+ import android.view.ViewGroup
+ import android.widget.PopupMenu
++import androidx.core.view.isVisible
+ import androidx.paging.PagingDataAdapter
+ import androidx.recyclerview.widget.DiffUtil
+ import androidx.recyclerview.widget.RecyclerView
+@@ -62,6 +64,58 @@ abstract class ClipboardAdapter(
+ 
+     private var popupMenu: PopupMenu? = null
+ 
++    /** 由 Window 注入：从条目上的拖拽把手开始拖拽。 */
++    var onStartDrag: ((RecyclerView.ViewHolder) -> Unit)? = null
++
++    /** 是否允许手动拖动排序（搜索过滤时禁用，避免打乱未显示条目的顺序）。 */
++    var reorderEnabled: Boolean = true
++
++    /**
++     * 拖拽排序期间使用的本地顺序镜像。
++     * [PagingDataAdapter] 的数据来自 PagingSource，无法直接原地重排，
++     * 因此拖动时读取该镜像，松开后再持久化。
++     */
++    private var reorderItems: MutableList<DatabaseBean>? = null
++
++    private fun itemAt(position: Int): DatabaseBean? =
++        reorderItems?.getOrNull(position) ?: getItem(position)
++
++    private fun buildReorderItems(): MutableList<DatabaseBean>? {
++        val items = ArrayList<DatabaseBean>(itemCount)
++        for (i in 0 until itemCount) {
++            items.add(getItem(i) ?: return null)
++        }
++        return items
++    }
++
++    /**
++     * [ItemTouchHelper] 回调：把 [from] 处的条目移动到 [to]。
++     * 置顶（pinned）条目与普通条目之间不允许互相跨越，以保持 `pinned DESC` 的排序语义。
++     */
++    fun moveItem(
++        from: Int,
++        to: Int,
++    ): Boolean {
++        if (!reorderEnabled || from == to) return false
++        val items = reorderItems ?: buildReorderItems()?.also { reorderItems = it } ?: return false
++        val moving = items.getOrNull(from) ?: return false
++        val target = items.getOrNull(to) ?: return false
++        if (moving.pinned != target.pinned) return false
++        items.add(to, items.removeAt(from))
++        notifyItemMoved(from, to)
++        return true
++    }
++
++    /**
++     * 拖拽结束时调用，返回按新顺序重新编号后的条目（[DatabaseBean.orderIndex] = 列表下标），
++     * 由调用方写入数据库。无拖拽发生时返回空列表。
++     */
++    fun commitReorder(): List<DatabaseBean> {
++        val items = reorderItems ?: return emptyList()
++        reorderItems = null
++        return items.mapIndexed { index, bean -> bean.copy(orderIndex = index) }
++    }
++
+     class ViewHolder(
+         val ui: ClipboardBeanUi,
+     ) : RecyclerView.ViewHolder(ui.root)
+@@ -75,9 +129,18 @@ abstract class ClipboardAdapter(
+         holder: ViewHolder,
+         position: Int,
+     ) {
+-        val bean = getItem(position) ?: return
++        val bean = itemAt(position) ?: return
+         with(holder.ui) {
+             setBean(excerptText(bean.text ?: ""), bean.pinned)
++            dragHandle.isVisible = reorderEnabled
++            dragHandle.setOnTouchListener { _, event ->
++                if (event.actionMasked == MotionEvent.ACTION_DOWN) {
++                    onStartDrag?.invoke(holder)
++                    true
++                } else {
++                    false
++                }
++            }
+             root.setOnClickListener {
+                 onPaste(bean)
+             }
+@@ -99,16 +162,19 @@ abstract class ClipboardAdapter(
+                     menu.item(R.string.collect, R.drawable.ic_baseline_star_24, iconTint) {
+                         onCollect(bean)
+                     }
+-                    if (bean.pinned) {
+-                        menu.item(R.string.simple_key_unpin, R.drawable.ic_outline_push_pin_24, iconTint) {
+-                            onUnpin(bean.id)
+-                        }
+-                    } else {
+-                        menu.item(R.string.simple_key_pin, R.drawable.ic_baseline_push_pin_24, iconTint) {
+-                            onPin(bean.id)
+-                        }
++                }
++
++                // 置顶 / 取消置顶：剪切板与收藏夹均可用
++                if (bean.pinned) {
++                    menu.item(R.string.simple_key_unpin, R.drawable.ic_outline_push_pin_24, iconTint) {
++                        onUnpin(bean.id)
++                    }
++                } else {
++                    menu.item(R.string.simple_key_pin, R.drawable.ic_baseline_push_pin_24, iconTint) {
++                        onPin(bean.id)
+                     }
+                 }
++
+                 menu.item(R.string.delete, R.drawable.ic_baseline_delete_24, iconTint) {
+                     onDelete(bean.id)
+                 }
+diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardBeanUi.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardBeanUi.kt
+index fffe26d..934a2ae 100644
+--- a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardBeanUi.kt
++++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardBeanUi.kt
+@@ -20,6 +20,9 @@ import splitties.views.dsl.constraintlayout.centerVertically
+ import splitties.views.dsl.constraintlayout.constraintLayout
+ import splitties.views.dsl.constraintlayout.endOfParent
+ import splitties.views.dsl.constraintlayout.lParams
++import splitties.views.dsl.constraintlayout.matchConstraints
++import splitties.views.dsl.constraintlayout.startOfParent
++import splitties.views.dsl.constraintlayout.startToEndOf
+ import splitties.views.dsl.core.Ui
+ import splitties.views.dsl.core.add
+ import splitties.views.dsl.core.imageView
+@@ -42,6 +45,15 @@ class ClipboardBeanUi(override val ctx: Context, private val theme: Theme) : Ui
+             setTextColor(ColorManager.getColor("key_text_color"))
+         }
+ 
++    val dragHandle =
++        imageView {
++            imageDrawable =
++                drawable(R.drawable.ic_baseline_drag_handle_24)!!.apply {
++                    setTint(ColorManager.getColor("key_symbol_color"))
++                    setAlpha(0.3f)
++                }
++        }
++
+     val pin =
+         imageView {
+             imageDrawable =
+@@ -53,9 +65,18 @@ class ClipboardBeanUi(override val ctx: Context, private val theme: Theme) : Ui
+ 
+     val layout =
+         constraintLayout {
++            add(
++                dragHandle,
++                lParams(dp(20), dp(20)) {
++                    startOfParent(dp(2))
++                    centerVertically()
++                },
++            )
+             add(
+                 textView,
+-                lParams(matchParent, wrapContent) {
++                lParams(matchConstraints, wrapContent) {
++                    startToEndOf(dragHandle)
++                    endOfParent()
+                     centerVertically()
+                 },
+             )
+diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchBridge.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchBridge.kt
+new file mode 100755
+index 0000000..2eb46c0
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchBridge.kt
+@@ -0,0 +1,55 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ *
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.ime.clipboard
++
++/**
++ * 让输入法自身的按键输入进入剪贴板/收藏夹的搜索框。
++ *
++ * 输入法窗口内的 EditText 无法直接接收同文自身键盘提交的文本（提交会送往宿主应用），
++ * 因此在搜索框激活时，通过本桥把输入法（Rime）提交的文本重定向到搜索框。
++ * 非激活状态下 [acceptText]/[acceptBackspace] 恒返回 false，不拦截任何输入，
++ * 因此对原版行为零影响。
++ */
++object ClipboardSearchBridge {
++    @Volatile
++    var active: Boolean = false
++        private set
++
++    private var onText: ((String) -> Unit)? = null
++    private var onBackspace: (() -> Unit)? = null
++
++    fun activate(
++        onText: (String) -> Unit,
++        onBackspace: () -> Unit,
++    ) {
++        this.onText = onText
++        this.onBackspace = onBackspace
++        active = true
++    }
++
++    fun reset() {
++        active = false
++        onText = null
++        onBackspace = null
++    }
++
++    /** 若搜索框激活，则把提交的文本写入搜索框并返回 true（调用方不应再提交给宿主）。 */
++    fun acceptText(text: String): Boolean {
++        if (!active) return false
++        val handler = onText ?: return false
++        handler(text)
++        return true
++    }
++
++    /** 若搜索框激活，则删除搜索框末位字符并返回 true。 */
++    fun acceptBackspace(): Boolean {
++        if (!active) return false
++        val handler = onBackspace ?: return false
++        handler()
++        return true
++    }
++}
+diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardTitleUi.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardTitleUi.kt
+index df6e47d..2523b5e 100644
+--- a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardTitleUi.kt
++++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardTitleUi.kt
+@@ -6,7 +6,10 @@
+ package com.osfans.trime.ime.clipboard
+ 
+ import android.content.Context
++import android.widget.EditText
++import androidx.core.view.isVisible
+ import com.osfans.trime.R
++import com.osfans.trime.data.theme.ColorManager
+ import com.osfans.trime.data.theme.Theme
+ import com.osfans.trime.ime.bar.ui.ToolButton
+ import com.osfans.trime.ime.core.InputTabLayout
+@@ -15,9 +18,11 @@ import splitties.views.dsl.constraintlayout.centerVertically
+ import splitties.views.dsl.constraintlayout.constraintLayout
+ import splitties.views.dsl.constraintlayout.endOfParent
+ import splitties.views.dsl.constraintlayout.lParams
++import splitties.views.dsl.constraintlayout.matchConstraints
+ import splitties.views.dsl.constraintlayout.startOfParent
+ import splitties.views.dsl.core.Ui
+ import splitties.views.dsl.core.add
++import splitties.views.dsl.core.view
+ import splitties.views.dsl.core.wrapContent
+ 
+ class ClipboardTitleUi(override val ctx: Context, private val theme: Theme) : Ui {
+@@ -26,6 +31,24 @@ class ClipboardTitleUi(override val ctx: Context, private val theme: Theme) : Ui
+ 
+     val deleteAllButton = ToolButton(ctx, R.drawable.ic_baseline_delete_sweep_24)
+ 
++    /** 搜索入口按钮，点击后展开搜索框。 */
++    val searchButton = ToolButton(ctx, R.drawable.ic_baseline_search_24)
++
++    /** 退出搜索按钮。 */
++    val clearSearchButton = ToolButton(ctx, R.drawable.ic_outline_cancel_24)
++
++    /** 搜索输入框，默认隐藏，由 [setSearchActive] 控制显隐。 */
++    val searchInput =
++        view(::EditText) {
++            hint = ctx.getString(R.string.dahi_clipboard_search_hint)
++            isSingleLine = true
++            textSize = theme.generalStyle.candidateTextSize
++            setTextColor(ColorManager.getColor("key_text_color"))
++            setHintTextColor(ColorManager.getColor("key_symbol_color"))
++            background = null
++            isVisible = false
++        }
++
+     private val size = theme.generalStyle.run { candidateViewHeight + commentHeight }
+ 
+     override val root = constraintLayout {
+@@ -36,6 +59,28 @@ class ClipboardTitleUi(override val ctx: Context, private val theme: Theme) : Ui
+                 centerVertically()
+             },
+         )
++        add(
++            searchInput,
++            lParams(matchConstraints, wrapContent) {
++                startOfParent(dp(8))
++                endOfParent(dp(size))
++                centerVertically()
++            },
++        )
++        add(
++            searchButton,
++            lParams(dp(size), dp(size)) {
++                centerVertically()
++                endOfParent(dp(size))
++            },
++        )
++        add(
++            clearSearchButton,
++            lParams(dp(size), dp(size)) {
++                centerVertically()
++                endOfParent()
++            },
++        )
+         add(
+             deleteAllButton,
+             lParams(dp(size), dp(size)) {
+@@ -44,4 +89,23 @@ class ClipboardTitleUi(override val ctx: Context, private val theme: Theme) : Ui
+             },
+         )
+     }
++
++    init {
++        clearSearchButton.isVisible = false
++    }
++
++    /**
++     * 切换搜索模式：进入时隐藏标签栏与原有按钮、显示搜索框；
++     * 退出时恢复，并清空查询内容。
++     */
++    fun setSearchActive(active: Boolean) {
++        tabLayout.isVisible = !active
++        searchButton.isVisible = !active
++        deleteAllButton.isVisible = !active
++        searchInput.isVisible = active
++        clearSearchButton.isVisible = active
++        if (!active) {
++            searchInput.setText("")
++        }
++    }
+ }
+diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
+index 3e396c2..16c2f74 100644
+--- a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
++++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
+@@ -9,9 +9,12 @@ import android.app.AlertDialog
+ import android.content.Intent
+ import android.graphics.Typeface
+ import android.view.View
++import androidx.core.widget.doAfterTextChanged
+ import androidx.lifecycle.lifecycleScope
+ import androidx.paging.Pager
+ import androidx.paging.PagingConfig
++import androidx.recyclerview.widget.ItemTouchHelper
++import androidx.recyclerview.widget.RecyclerView
+ import com.osfans.trime.R
+ import com.osfans.trime.data.db.ClipboardHelper
+ import com.osfans.trime.data.db.CollectionHelper
+@@ -27,7 +30,10 @@ import com.osfans.trime.ime.window.BoardWindow
+ import com.osfans.trime.ime.window.BoardWindowManager
+ import com.osfans.trime.ui.main.ClipEditActivity
+ import com.osfans.trime.util.AppUtils
++import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.Job
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.flatMapLatest
+ import kotlinx.coroutines.launch
+ import org.kodein.di.instance
+ import splitties.views.recyclerview.verticalLayoutManager
+@@ -44,11 +50,25 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+     private val prefs = AppPrefs.defaultInstance().clipboard
+     private val clipboardReturnAfterPaste by prefs.clipboardReturnAfterPaste
+ 
+-    private val clipboardBeansPager by lazy {
+-        Pager(PagingConfig(pageSize = 16)) { ClipboardHelper.allBeans() }
++    private val clipboardQuery = MutableStateFlow("")
++    private val collectionQuery = MutableStateFlow("")
++
++    @OptIn(ExperimentalCoroutinesApi::class)
++    private val clipboardBeansFlow by lazy {
++        clipboardQuery.flatMapLatest { query ->
++            Pager(PagingConfig(pageSize = 16)) {
++                if (query.isBlank()) ClipboardHelper.allBeans() else ClipboardHelper.searchBeans(query)
++            }.flow
++        }
+     }
+-    private val collectionBeansPager by lazy {
+-        Pager(PagingConfig(pageSize = 16)) { CollectionHelper.allBeans() }
++
++    @OptIn(ExperimentalCoroutinesApi::class)
++    private val collectionBeansFlow by lazy {
++        collectionQuery.flatMapLatest { query ->
++            Pager(PagingConfig(pageSize = 16)) {
++                if (query.isBlank()) CollectionHelper.allBeans() else CollectionHelper.searchBeans(query)
++            }.flow
++        }
+     }
+     private var clipboardBeansSubmitJob: Job? = null
+     private var collectionBeansSubmitJob: Job? = null
+@@ -113,6 +133,14 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+                 AppUtils.launchClipEdit(context, id, ClipEditActivity.FROM_COLLECTION)
+             }
+ 
++            override fun onPin(id: Int) {
++                service.lifecycleScope.launch { CollectionHelper.pin(id) }
++            }
++
++            override fun onUnpin(id: Int) {
++                service.lifecycleScope.launch { CollectionHelper.unpin(id) }
++            }
++
+             override fun onShare(bean: DatabaseBean) {
+                 val text = bean.text ?: return
+                 launchTextSharing(text)
+@@ -136,6 +164,7 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+             recyclerView.apply {
+                 layoutManager = verticalLayoutManager()
+                 adapter = clipboardBeansAdapter
++                attachReorderHelper(this, clipboardBeansAdapter) { ClipboardHelper.updateOrder(it) }
+             }
+         }
+     }
+@@ -145,6 +174,7 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+             recyclerView.apply {
+                 layoutManager = verticalLayoutManager()
+                 adapter = collectionBeansAdapter
++                attachReorderHelper(this, collectionBeansAdapter) { CollectionHelper.updateOrder(it) }
+             }
+         }
+     }
+@@ -185,6 +215,36 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+                     }
+                 }
+             }
++            searchButton.setOnClickListener {
++                setSearchActive(true)
++                // 输入法窗口内的输入框无法直接接收同文键盘提交的文本，改用桥接重定向
++                ClipboardSearchBridge.activate(
++                    onText = { s ->
++                        searchInput.setText(searchInput.text.toString() + s)
++                        searchInput.setSelection(searchInput.text.length)
++                    },
++                    onBackspace = {
++                        val current = searchInput.text.toString()
++                        if (current.isNotEmpty()) {
++                            searchInput.setText(current.substring(0, current.length - 1))
++                            searchInput.setSelection(searchInput.text.length)
++                        }
++                    },
++                )
++            }
++            clearSearchButton.setOnClickListener {
++                setSearchActive(false)
++                ClipboardSearchBridge.reset()
++            }
++            searchInput.doAfterTextChanged { text ->
++                val query = text?.toString().orEmpty()
++                val searching = query.isNotBlank()
++                // 搜索时禁用拖动排序，避免只对过滤后的子集重新编号而打乱顺序
++                clipboardBeansAdapter.reorderEnabled = !searching
++                collectionBeansAdapter.reorderEnabled = !searching
++                clipboardQuery.value = query
++                collectionQuery.value = query
++            }
+         }
+     }
+ 
+@@ -199,6 +259,43 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+         service.startActivity(chooser)
+     }
+ 
++    private fun attachReorderHelper(
++        recyclerView: RecyclerView,
++        adapter: ClipboardAdapter,
++        persist: suspend (List<DatabaseBean>) -> Unit,
++    ) {
++        val callback =
++            object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
++                override fun onMove(
++                    recyclerView: RecyclerView,
++                    viewHolder: RecyclerView.ViewHolder,
++                    target: RecyclerView.ViewHolder,
++                ): Boolean = adapter.moveItem(viewHolder.bindingAdapterPosition, target.bindingAdapterPosition)
++
++                override fun onSwiped(
++                    viewHolder: RecyclerView.ViewHolder,
++                    direction: Int,
++                ) = Unit
++
++                // 由条目上的拖拽把手触发，避免与长按弹出菜单冲突
++                override fun isLongPressDragEnabled(): Boolean = false
++
++                override fun clearView(
++                    recyclerView: RecyclerView,
++                    viewHolder: RecyclerView.ViewHolder,
++                ) {
++                    super.clearView(recyclerView, viewHolder)
++                    val reordered = adapter.commitReorder()
++                    if (reordered.isNotEmpty()) {
++                        service.lifecycleScope.launch { persist(reordered) }
++                    }
++                }
++            }
++        val helper = ItemTouchHelper(callback)
++        helper.attachToRecyclerView(recyclerView)
++        adapter.onStartDrag = { helper.startDrag(it) }
++    }
++
+     private fun promptDeleteAll(action: suspend () -> Unit) {
+         val dialog = AlertDialog.Builder(context)
+             .setTitle(R.string.delete_all)
+@@ -215,12 +312,12 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+     override fun onAttached() {
+         clipboardLayout.viewPager.setCurrentItem(initialTab, false)
+         clipboardBeansSubmitJob = service.lifecycleScope.launch {
+-            clipboardBeansPager.flow.collect {
++            clipboardBeansFlow.collect {
+                 clipboardBeansAdapter.submitData(it)
+             }
+         }
+         collectionBeansSubmitJob = service.lifecycleScope.launch {
+-            collectionBeansPager.flow.collect {
++            collectionBeansFlow.collect {
+                 collectionBeansAdapter.submitData(it)
+             }
+         }
+diff --git a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
+index 6bba2fa..ec38b3d 100644
+--- a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
++++ b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
+@@ -47,8 +47,10 @@ import com.osfans.trime.data.prefs.PreferenceDelegateProvider
+ import com.osfans.trime.data.theme.ColorManager
+ import com.osfans.trime.data.theme.Theme
+ import com.osfans.trime.data.theme.ThemeManager
++import com.osfans.trime.ime.clipboard.ClipboardSearchBridge
+ import com.osfans.trime.ime.composition.CandidatesView
+ import com.osfans.trime.ime.keyboard.InputFeedbackManager
++import com.osfans.trime.link.AsrkbSpeechClient
+ import com.osfans.trime.receiver.RimeIntentReceiver
+ import com.osfans.trime.util.any
+ import com.osfans.trime.util.findSectionFrom
+@@ -205,7 +207,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+         when (it) {
+             is RimeMessage.CommitTextMessage -> {
+                 if (!it.data.text.isNullOrEmpty()) {
+-                    commitText(it.data.text)
++                    // 剪贴板/收藏夹搜索框激活时，把输入法提交的文本重定向到搜索框
++                    if (!ClipboardSearchBridge.acceptText(it.data.text)) {
++                        commitText(it.data.text)
++                    }
+                 }
+             }
+             is RimeMessage.InlinePreeditMessage -> {
+@@ -218,6 +223,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+                             RimeKeyMapping.RimeKey_Return -> handleReturnKey()
+                             else -> {
+                                 val keyCode = it.value.keyCode
++                                if (keyCode == KeyEvent.KEYCODE_DEL && ClipboardSearchBridge.acceptBackspace()) {
++                                    return@msg
++                                }
+                                 if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
+                                     // recognized keyCode
+                                     sendDownUpKeyEvent(
+@@ -243,6 +251,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+                         }
+                     } else {
+                         val keyCode = it.value.keyCode
++                        if (keyCode == KeyEvent.KEYCODE_DEL && ClipboardSearchBridge.acceptBackspace()) {
++                            return@msg
++                        }
+                         if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
+                             // recognized keyCode
+                             val eventTime = SystemClock.uptimeMillis()
+@@ -301,6 +312,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+     }
+ 
+     override fun onDestroy() {
++        AsrkbSpeechClient.onServiceDestroyed(this)
+         InputFeedbackManager.destroy()
+         inputView = null
+         recreateInputViewPrefs.forEach {
+@@ -323,6 +335,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+                 return
+             }
+             if (!actionLabel.isNullOrEmpty() && actionId != EditorInfo.IME_ACTION_UNSPECIFIED) {
++                AsrkbSpeechClient.onEditorAction()
+                 currentInputConnection.performEditorAction(actionId)
+                 return
+             }
+@@ -331,7 +344,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+                 EditorInfo.IME_ACTION_NONE,
+                 -> sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+ 
+-                else -> currentInputConnection.performEditorAction(action)
++                else -> {
++                    AsrkbSpeechClient.onEditorAction()
++                    currentInputConnection.performEditorAction(action)
++                }
+             }
+         }
+     }
+@@ -428,6 +444,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+         cursorUpdateIndex += 1
+         handleCursorUpdate(newSelStart, newSelEnd, candidatesStart, candidatesEnd, cursorUpdateIndex)
+         inputView?.updateSelection(newSelStart, newSelEnd)
++        AsrkbSpeechClient.onEditorEvent(this)
+     }
+ 
+     private fun handleCursorUpdate(
+@@ -513,6 +530,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+         attribute: EditorInfo,
+         restarting: Boolean,
+     ) {
++        AsrkbSpeechClient.onStartInput(attribute, restarting)
+         composingText = ""
+         Timber.d("onStartInput: restarting=$restarting")
+         val isNullType = attribute.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_NULL
+@@ -582,6 +600,11 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+         InputFeedbackManager.finishInput()
+     }
+ 
++    override fun onFinishInput() {
++        AsrkbSpeechClient.onFinishInput()
++        super.onFinishInput()
++    }
++
+     fun commitText(text: String) {
+         val ic = currentInputConnection ?: return
+ 
+diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
+index 8723227..65f6808 100644
+--- a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
++++ b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
+@@ -22,6 +22,7 @@ import com.osfans.trime.data.theme.FontManager
+ import com.osfans.trime.ime.core.TrimeInputMethodService
+ import com.osfans.trime.ime.popup.PopupAction
+ import com.osfans.trime.ime.popup.PopupDelegate
++import com.osfans.trime.link.AsrkbVoiceHoldSessionController
+ import com.osfans.trime.util.sp
+ import splitties.dimensions.dp
+ import timber.log.Timber
+@@ -43,11 +44,25 @@ class KeyView(
+ 
+     private val rime get() = RimeDaemon.getFirstSessionOrNull()!!
+ 
++    private val bibiAidlVoiceEnabled: Boolean by lazy {
++        AppPrefs.defaultInstance().general.bibiAidlVoiceEnabled.getValue()
++    }
++
+     private val deletedTextBuffer = ArrayDeque<String>()
+ 
+     private var keyPressed = false
+     override fun isPressed(): Boolean = keyPressed
+ 
++    private val asrkbVoiceHoldController by lazy {
++        AsrkbVoiceHoldSessionController(
++            service = service,
++            showOverlay = { keyboardView.showVoiceOverlay() },
++            startWave = { keyboardView.startVoiceOverlayWave() },
++            updateAmplitude = { amplitude -> keyboardView.updateVoiceOverlayAmplitude(amplitude) },
++            hideOverlay = { keyboardView.hideVoiceOverlay() },
++        )
++    }
++
+     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+         textAlign = Paint.Align.CENTER
+     }
+@@ -92,7 +107,12 @@ class KeyView(
+ 
+         onRelease = { behavior, isFromLongPress ->
+             Timber.d("KeyView release: label=${key.getLabel()}, behavior=$behavior, fromLongPress=$isFromLongPress")
+-            if (isFromLongPress) {
++            if (isFromLongPress && asrkbVoiceHoldController.isRunning() && isAsrkbVoiceLongPressAction(key.getAction(KeyBehavior.LONG_CLICK))) {
++                asrkbVoiceHoldController.stopIfStarted()
++                setPressedState(false)
++                dismissPopupPreview()
++                if (keyboard.firstPressedKeyIndex == id) keyboard.firstPressedKeyIndex = -1
++            } else if (isFromLongPress) {
+                 if (hasPopup) {
+                     val triggerAction = PopupAction.TriggerAction(id)
+                     popup.listener.onPopupAction(triggerAction)
+@@ -156,11 +176,14 @@ class KeyView(
+         }
+ 
+         onLongClick = {
+-            if (key.popup.isNotEmpty()) {
++            val longPressAction = key.getAction(KeyBehavior.LONG_CLICK)
++            if (isAsrkbVoiceLongPressAction(longPressAction)) {
++                asrkbVoiceHoldController.start()
++            } else if (key.popup.isNotEmpty()) {
+                 dismissPopupPreview()
+                 showPopupKeyboard()
+             } else if (hasLongPress) {
+-                key.getAction(KeyBehavior.LONG_CLICK)?.let {
++                longPressAction?.let {
+                     processKeyAction(it, KeyBehavior.LONG_CLICK)
+                     setPressedState(false)
+                     dismissPopupPreview()
+@@ -176,6 +199,7 @@ class KeyView(
+ 
+         onCancel = {
+             deletedTextBuffer.clear()
++            asrkbVoiceHoldController.stopIfStarted()
+             setPressedState(false)
+             dismissPopupPreview()
+         }
+@@ -193,6 +217,9 @@ class KeyView(
+         }
+     }
+ 
++    private fun isAsrkbVoiceLongPressAction(action: KeyAction?): Boolean =
++        bibiAidlVoiceEnabled && action?.code == KeyEvent.KEYCODE_VOICE_ASSIST
++
+     private fun processKeyAction(action: KeyAction, behavior: KeyBehavior) {
+         Timber.d("processKeyAction: label=${key.getLabel()}, code=${action.code}, type=$behavior")
+ 
+diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardView.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardView.kt
+index 8c73597..838998d 100644
+--- a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardView.kt
++++ b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardView.kt
+@@ -8,13 +8,25 @@ package com.osfans.trime.ime.keyboard
+ import android.annotation.SuppressLint
+ import android.content.Context
+ import android.graphics.Canvas
++import android.graphics.Color
++import android.view.Gravity
++import android.view.View
+ import android.widget.FrameLayout
+ import androidx.core.view.children
++import androidx.transition.Slide
++import androidx.transition.TransitionManager
++import androidx.transition.TransitionSet
+ import com.osfans.trime.data.prefs.AppPrefs
++import com.osfans.trime.data.theme.ColorManager
+ import com.osfans.trime.data.theme.Theme
+ import com.osfans.trime.ime.broadcast.EnterKeyDisplayDelegate
+ import com.osfans.trime.ime.core.TrimeInputMethodService
+ import com.osfans.trime.ime.popup.PopupDelegate
++import com.osfans.trime.ime.voice.WaveformView
++import com.osfans.trime.link.AsrkbSpeechClient
++import com.osfans.trime.link.VoiceOverlayUiBridge
++import timber.log.Timber
++import androidx.core.graphics.ColorUtils as AndroidColorUtils
+ 
+ // TODO: move layout calculation responsibilities from Keyboard to KeyboardView using ConstraintLayout
+ @SuppressLint("ViewConstructor")
+@@ -40,6 +52,9 @@ class KeyboardView(
+     internal val hideKeySymbol: Boolean by AppPrefs.defaultInstance().keyboard.hideKeySymbol
+     internal val hideKeyHint: Boolean by AppPrefs.defaultInstance().keyboard.hideKeyHint
+ 
++    private var voiceOverlay: FrameLayout? = null
++    private var voiceWave: WaveformView? = null
++
+     init {
+         setWillNotDraw(false)
+         buildKeyViews()
+@@ -100,6 +115,90 @@ class KeyboardView(
+         get() = keyboard.mShiftKey?.isOn == true
+ 
+     fun onDetach() {
++        if (AsrkbSpeechClient.isHolding()) {
++            hideVoiceOverlay()
++            VoiceOverlayUiBridge.clear()
++            AsrkbSpeechClient.stopHoldSession()
++        } else {
++            hideVoiceOverlay()
++            VoiceOverlayUiBridge.clear()
++        }
+         popup.dismissAll()
+     }
++
++    internal fun showVoiceOverlay() {
++        if (voiceOverlay != null) return
++
++        val bgColor = runCatching { ColorManager.getColor("keyboard_back_color") }.getOrElse { Color.BLACK }
++        val overlay =
++            FrameLayout(context).apply {
++                layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
++                isClickable = false
++                isFocusable = false
++                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
++
++                runCatching {
++                    ColorManager.getDecorDrawable("keyboard_background")?.also { background = it }
++                }.onFailure { Timber.d(it, "Resolve keyboard_background drawable failed") }
++                if (background == null) setBackgroundColor(bgColor)
++            }
++
++        val candidateColors =
++            listOf(
++                "key_text_color",
++                "hilited_key_text_color",
++                "candidate_text_color",
++                "hilited_candidate_text_color",
++            ).mapNotNull { key ->
++                runCatching { ColorManager.getColor(key) }.getOrNull()
++            }
++        val lineColor =
++            candidateColors.firstOrNull { AndroidColorUtils.calculateContrast(it, bgColor) >= 2.5 }
++                ?: candidateColors.firstOrNull()
++                ?: Color.WHITE
++
++        val wave =
++            WaveformView(context).apply {
++                setWaveformColor(lineColor)
++                visibility = View.INVISIBLE
++            }
++        overlay.addView(wave, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
++
++        val transition =
++            TransitionSet().apply {
++                addTransition(Slide(Gravity.BOTTOM).apply { addTarget(overlay) })
++                duration = 100
++            }
++        runCatching { TransitionManager.beginDelayedTransition(this, transition) }
++            .onFailure { Timber.d(it, "Begin voice overlay transition failed") }
++
++        addView(overlay, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
++        voiceOverlay = overlay
++        voiceWave = wave
++    }
++
++    internal fun hideVoiceOverlay() {
++        val overlay = voiceOverlay ?: return
++        runCatching { voiceWave?.stop() }.onFailure { Timber.w(it, "Stop WaveformView failed") }
++        val transition =
++            TransitionSet().apply {
++                addTransition(Slide(Gravity.BOTTOM).apply { addTarget(overlay) })
++                duration = 100
++            }
++        runCatching { TransitionManager.beginDelayedTransition(this, transition) }
++            .onFailure { Timber.d(it, "Begin voice overlay transition failed") }
++        runCatching { removeView(overlay) }.onFailure { Timber.w(it, "Remove voice overlay failed") }
++        voiceOverlay = null
++        voiceWave = null
++    }
++
++    internal fun startVoiceOverlayWave() {
++        val wave = voiceWave ?: return
++        wave.visibility = View.VISIBLE
++        wave.start()
++    }
++
++    internal fun updateVoiceOverlayAmplitude(amplitude: Float) {
++        voiceWave?.updateAmplitude(amplitude)
++    }
+ }
+diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardWindow.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardWindow.kt
+index dc20453..436dbab 100644
+--- a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardWindow.kt
++++ b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardWindow.kt
+@@ -274,6 +274,22 @@ class KeyboardWindow :
+         attachKeyboard(id)
+     }
+ 
++    fun showAsrkbVoiceOverlay() {
++        currentKeyboardView?.showVoiceOverlay()
++    }
++
++    fun hideAsrkbVoiceOverlay() {
++        currentKeyboardView?.hideVoiceOverlay()
++    }
++
++    fun startAsrkbVoiceOverlayWave() {
++        currentKeyboardView?.startVoiceOverlayWave()
++    }
++
++    fun updateAsrkbVoiceOverlayAmplitude(amplitude: Float) {
++        currentKeyboardView?.updateVoiceOverlayAmplitude(amplitude)
++    }
++
+     override fun onStartInput(info: EditorInfo) {
+         val targetKeyboard =
+             when (info.imeOptions and EditorInfo.IME_FLAG_FORCE_ASCII) {
+diff --git a/app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt b/app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt
+new file mode 100755
+index 0000000..d0d7159
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt
+@@ -0,0 +1,129 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.ime.voice
++
++import android.content.Context
++import android.graphics.Canvas
++import android.graphics.Color
++import android.graphics.Paint
++import android.util.AttributeSet
++import android.view.View
++import androidx.annotation.ColorInt
++import kotlin.math.ln
++import kotlin.math.max
++import kotlin.math.sin
++
++/**
++ * 实时音频波形视图。
++ *
++ * 上游 fork 基于第三方库 jaygoo/WaveLineView 实现；此处为保持工程零额外依赖，
++ * 用一个自绘的简单柱状波形替代，但对外 API 与说点啥/小企鹅保持一致：
++ * [start] / [stop] / [updateAmplitude] / [setWaveformColor]。
++ */
++class WaveformView @JvmOverloads constructor(
++    context: Context,
++    attrs: AttributeSet? = null,
++    defStyleAttr: Int = 0,
++) : View(context, attrs, defStyleAttr) {
++
++    companion object {
++        private const val AMPLITUDE_GAIN = 1.6
++        private const val AMPLITUDE_LOG_K = 18.0
++        private const val BAR_COUNT = 48
++        private const val FRAME_DELAY_MS = 40L
++    }
++
++    private val paint =
++        Paint(Paint.ANTI_ALIAS_FLAG).apply {
++            strokeCap = Paint.Cap.ROUND
++            color = Color.WHITE
++        }
++
++    @ColorInt
++    private var lineColor: Int = Color.WHITE
++
++    private var isActive = false
++    private var normalizedVolume = 0f
++    private val levels = FloatArray(BAR_COUNT)
++    private var phase = 0f
++
++    private val frameRunnable =
++        object : Runnable {
++            override fun run() {
++                if (!isActive) return
++                phase += 0.35f
++                for (i in levels.indices) {
++                    val wave = (sin((phase + i * 0.4f).toDouble()).toFloat() + 1f) / 2f
++                    val target = normalizedVolume * (0.35f + 0.65f * wave)
++                    levels[i] = max(levels[i] * 0.6f, target)
++                }
++                invalidate()
++                postDelayed(this, FRAME_DELAY_MS)
++            }
++        }
++
++    fun setWaveformColor(@ColorInt color: Int) {
++        lineColor = color
++        paint.color = color
++        invalidate()
++    }
++
++    fun updateAmplitude(amplitude: Float) {
++        if (!isActive) return
++        normalizedVolume = amplitudeToVolume(amplitude)
++    }
++
++    fun start() {
++        if (isActive) return
++        isActive = true
++        postDelayed(frameRunnable, FRAME_DELAY_MS)
++    }
++
++    fun stop() {
++        if (!isActive) return
++        isActive = false
++        removeCallbacks(frameRunnable)
++        levels.fill(0f)
++        normalizedVolume = 0f
++        invalidate()
++    }
++
++    override fun onDraw(canvas: Canvas) {
++        super.onDraw(canvas)
++        if (width <= 0 || height <= 0) return
++        paint.color = lineColor
++        paint.strokeWidth = max(2f, width / (BAR_COUNT * 2.5f))
++        val centerY = height / 2f
++        val maxHalf = height / 2f * 0.9f
++        val step = width.toFloat() / BAR_COUNT
++        for (i in levels.indices) {
++            val x = step * i + step / 2f
++            val half = max(maxHalf * levels[i], paint.strokeWidth)
++            canvas.drawLine(x, centerY - half, x, centerY + half, paint)
++        }
++    }
++
++    override fun onVisibilityChanged(
++        changedView: View,
++        visibility: Int,
++    ) {
++        super.onVisibilityChanged(changedView, visibility)
++        if (changedView == this && visibility != View.VISIBLE) {
++            stop()
++        }
++    }
++
++    override fun onDetachedFromWindow() {
++        super.onDetachedFromWindow()
++        stop()
++    }
++
++    private fun amplitudeToVolume(amplitude: Float): Float {
++        val a = (amplitude.coerceIn(0f, 1f).toDouble() * AMPLITUDE_GAIN).coerceIn(0.0, 1.0)
++        val mapped = ln(1.0 + AMPLITUDE_LOG_K * a) / ln(1.0 + AMPLITUDE_LOG_K)
++        return mapped.toFloat().coerceIn(0f, 1f)
++    }
++}
+diff --git a/app/src/main/java/com/osfans/trime/link/AsrkbExternalInputSession.kt b/app/src/main/java/com/osfans/trime/link/AsrkbExternalInputSession.kt
+new file mode 100755
+index 0000000..b71458a
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/link/AsrkbExternalInputSession.kt
+@@ -0,0 +1,235 @@
++package com.osfans.trime.link
++
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.launch
++
++internal data class AsrkbCursorSnapshot(
++    val beforeCursor: String,
++    val afterCursor: String
++) {
++    fun bounded(maxChars: Int = MAX_CONTEXT_CHARS) = AsrkbCursorSnapshot(
++        beforeCursor.takeLast(maxChars),
++        afterCursor.take(maxChars)
++    )
++
++    fun text(): String = beforeCursor + afterCursor
++
++    companion object {
++        const val MAX_CONTEXT_CHARS = 1500
++    }
++}
++
++internal data class AsrkbCorrectionReport(
++    val sessionId: Int,
++    val generation: Long,
++    val snapshot: AsrkbCursorSnapshot,
++    val reason: String
++)
++
++internal data class AsrkbEditorIdentity(
++    val packageName: String,
++    val fieldId: Int,
++    val inputType: Int,
++    val imeOptions: Int
++)
++
++internal class AsrkbEditorGenerationTracker {
++    private var identity: AsrkbEditorIdentity? = null
++    var currentGeneration: Long = 0L
++        private set
++
++    fun onStartInput(next: AsrkbEditorIdentity, restarting: Boolean): Long {
++        if (!restarting || identity != next) currentGeneration++
++        identity = next
++        return currentGeneration
++    }
++
++    fun onFinishInput(): Long {
++        identity = null
++        currentGeneration++
++        return currentGeneration
++    }
++}
++
++internal class AsrkbNegotiationToken(
++    val sessionId: Int,
++    val generation: Long,
++    val connection: Any?
++)
++
++internal class AsrkbNegotiationGate {
++    private var current: AsrkbNegotiationToken? = null
++
++    @Synchronized
++    fun begin(sessionId: Int, generation: Long, connection: Any?): AsrkbNegotiationToken {
++        return AsrkbNegotiationToken(sessionId, generation, connection).also { current = it }
++    }
++
++    @Synchronized
++    fun isCurrent(token: AsrkbNegotiationToken): Boolean = current === token
++
++    @Synchronized
++    fun invalidate() {
++        current = null
++    }
++}
++
++internal fun launchAsrkbEditReport(
++    scope: CoroutineScope,
++    report: AsrkbCorrectionReport,
++    submit: (AsrkbCorrectionReport) -> Unit,
++    onComplete: () -> Unit = {}
++): Job = scope.launch(Dispatchers.IO) {
++    try {
++        submit(report)
++    } finally {
++        onComplete()
++    }
++}
++
++internal suspend inline fun negotiateOptionalInputThenContinue(
++    crossinline queryRequirements: suspend () -> Int?,
++    crossinline attachInputContext: suspend (Int) -> Boolean,
++    crossinline continueOriginalAsr: suspend () -> Unit
++): Boolean {
++    var correctionEnabled = false
++    try {
++        val requirements = queryRequirements() ?: 0
++        if (requirements != 0) {
++            correctionEnabled = attachInputContext(requirements) &&
++                requirements and (1 shl 1) != 0
++        }
++    } finally {
++        continueOriginalAsr()
++    }
++    return correctionEnabled
++}
++
++internal class AsrkbCorrectionTracker(
++    private val timeoutMs: Long = 30_000L
++) {
++    private data class Active(
++        val sessionId: Int,
++        val generation: Long,
++        val startedAtMs: Long,
++        val original: AsrkbCursorSnapshot,
++        var lastNonEmpty: AsrkbCursorSnapshot
++    )
++
++    private var active: Active? = null
++
++    @Synchronized
++    fun start(
++        sessionId: Int,
++        generation: Long,
++        initial: AsrkbCursorSnapshot,
++        finalText: String,
++        committed: AsrkbCursorSnapshot,
++        nowMs: Long
++    ): Boolean {
++        val expected = AsrkbCursorSnapshot(
++            beforeCursor = initial.beforeCursor + finalText,
++            afterCursor = initial.afterCursor
++        ).bounded()
++        if (sessionId <= 0 || generation <= 0L || finalText.isEmpty() || committed.bounded() != expected) {
++            active = null
++            return false
++        }
++        active = Active(sessionId, generation, nowMs, expected, expected)
++        return true
++    }
++
++    @Synchronized
++    fun update(
++        generation: Long,
++        snapshot: AsrkbCursorSnapshot,
++        nowMs: Long
++    ): AsrkbCorrectionReport? {
++        val current = active ?: return null
++        if (current.generation != generation) {
++            active = null
++            return null
++        }
++        val bounded = snapshot.bounded()
++        if (bounded.text().isNotEmpty()) current.lastNonEmpty = bounded
++        return when {
++            bounded.text().isEmpty() -> settle(current, "cleared")
++            nowMs - current.startedAtMs >= timeoutMs -> settle(current, "timeout")
++            else -> null
++        }
++    }
++
++    @Synchronized
++    fun cancel() {
++        active = null
++    }
++
++    @Synchronized
++    fun finish(
++        generation: Long,
++        snapshot: AsrkbCursorSnapshot,
++        reason: String
++    ): AsrkbCorrectionReport? {
++        val current = active ?: return null
++        if (current.generation != generation) {
++            active = null
++            return null
++        }
++        val bounded = snapshot.bounded()
++        if (bounded.text().isNotEmpty()) current.lastNonEmpty = bounded
++        return settle(current, reason)
++    }
++
++    @Synchronized
++    fun finishLast(generation: Long, reason: String): AsrkbCorrectionReport? {
++        val current = active ?: return null
++        if (current.generation != generation) {
++            active = null
++            return null
++        }
++        return settle(current, reason)
++    }
++
++    @Synchronized
++    fun isActive(): Boolean = active != null
++
++    private fun settle(current: Active, reason: String): AsrkbCorrectionReport? {
++        active = null
++        if (current.lastNonEmpty.text() == current.original.text()) return null
++        return AsrkbCorrectionReport(
++            sessionId = current.sessionId,
++            generation = current.generation,
++            snapshot = current.lastNonEmpty,
++            reason = reason
++        )
++    }
++}
++
++internal object AsrkbEditorPrivacy {
++    private const val TYPE_MASK_CLASS = 0x0000000f
++    private const val TYPE_MASK_VARIATION = 0x00000ff0
++    private const val TYPE_CLASS_TEXT = 0x00000001
++    private const val TYPE_CLASS_NUMBER = 0x00000002
++    private const val TYPE_TEXT_VARIATION_PASSWORD = 0x00000080
++    private const val TYPE_TEXT_VARIATION_VISIBLE_PASSWORD = 0x00000090
++    private const val TYPE_TEXT_VARIATION_WEB_PASSWORD = 0x000000e0
++    private const val TYPE_NUMBER_VARIATION_PASSWORD = 0x00000010
++    private const val IME_FLAG_NO_PERSONALIZED_LEARNING = 0x01000000
++
++    fun isEligible(inputType: Int, imeOptions: Int): Boolean {
++        if (imeOptions and IME_FLAG_NO_PERSONALIZED_LEARNING != 0) return false
++        val inputClass = inputType and TYPE_MASK_CLASS
++        val variation = inputType and TYPE_MASK_VARIATION
++        if (inputClass == TYPE_CLASS_TEXT && variation in TEXT_PASSWORD_VARIATIONS) return false
++        if (inputClass == TYPE_CLASS_NUMBER && variation == TYPE_NUMBER_VARIATION_PASSWORD) return false
++        return inputClass != 0
++    }
++
++    private val TEXT_PASSWORD_VARIATIONS = setOf(
++        TYPE_TEXT_VARIATION_PASSWORD,
++        TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
++        TYPE_TEXT_VARIATION_WEB_PASSWORD
++    )
++}
+diff --git a/app/src/main/java/com/osfans/trime/link/AsrkbRecordingAudioFocusController.kt b/app/src/main/java/com/osfans/trime/link/AsrkbRecordingAudioFocusController.kt
+new file mode 100755
+index 0000000..69d6979
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/link/AsrkbRecordingAudioFocusController.kt
+@@ -0,0 +1,222 @@
++/*
++ * SPDX-FileCopyrightText: 2026 BryceWG
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.link
++
++import android.content.Context
++import android.media.AudioAttributes
++import android.media.AudioFocusRequest
++import android.media.AudioManager
++import android.os.Build
++import androidx.annotation.RequiresApi
++import timber.log.Timber
++
++/** Controls the temporary audio-focus lease owned by an ASRKB microphone session. */
++internal enum class AsrkbRecordingAudioFocusLoss {
++    TRANSIENT,
++    MAY_DUCK,
++    PERMANENT,
++}
++
++internal interface AsrkbRecordingAudioFocusHandle
++
++internal interface AsrkbRecordingAudioFocusGateway {
++    fun requestFocus(onFocusChange: (Int) -> Unit): AsrkbRecordingAudioFocusHandle?
++
++    fun abandonFocus(handle: AsrkbRecordingAudioFocusHandle)
++}
++
++internal fun asrkbRecordingAudioFocusLossFromChange(change: Int): AsrkbRecordingAudioFocusLoss? = when (change) {
++    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> AsrkbRecordingAudioFocusLoss.TRANSIENT
++    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> AsrkbRecordingAudioFocusLoss.MAY_DUCK
++    AudioManager.AUDIOFOCUS_LOSS -> AsrkbRecordingAudioFocusLoss.PERMANENT
++    else -> null
++}
++
++internal class AsrkbRecordingAudioFocusController internal constructor(
++    private val gateway: AsrkbRecordingAudioFocusGateway,
++    private val onFocusLost: (AsrkbRecordingAudioFocusLoss) -> Unit,
++) {
++    constructor(
++        context: Context,
++        onFocusLost: (AsrkbRecordingAudioFocusLoss) -> Unit,
++    ) : this(
++        gateway = AndroidAsrkbRecordingAudioFocusGateway(context.applicationContext),
++        onFocusLost = onFocusLost,
++    )
++
++    private val lock = Any()
++    private var requestGeneration = 0L
++    private var activeHandle: AsrkbRecordingAudioFocusHandle? = null
++
++    fun acquire(): Boolean {
++        release()
++        val generation = synchronized(lock) {
++            requestGeneration += 1L
++            requestGeneration
++        }
++        val handle =
++            try {
++                gateway.requestFocus { change -> onPlatformFocusChange(generation, change) }
++            } catch (t: Throwable) {
++                Timber.w(t, "Failed to request ASRKB recording audio focus")
++                null
++            } ?: return false
++
++        val retained = synchronized(lock) {
++            if (requestGeneration == generation && activeHandle == null) {
++                activeHandle = handle
++                true
++            } else {
++                false
++            }
++        }
++        if (!retained) abandonSafely(handle)
++        return retained
++    }
++
++    fun release() {
++        val handle = synchronized(lock) {
++            requestGeneration += 1L
++            val current = activeHandle
++            activeHandle = null
++            current
++        } ?: return
++        abandonSafely(handle)
++    }
++
++    internal fun isHeldForTest(): Boolean = synchronized(lock) { activeHandle != null }
++
++    private fun onPlatformFocusChange(
++        generation: Long,
++        change: Int,
++    ) {
++        val loss = asrkbRecordingAudioFocusLossFromChange(change) ?: return
++        val handle = synchronized(lock) {
++            if (requestGeneration != generation) return
++            val current = activeHandle ?: return
++            activeHandle = null
++            requestGeneration += 1L
++            current
++        }
++        abandonSafely(handle)
++        try {
++            onFocusLost(loss)
++        } catch (t: Throwable) {
++            Timber.w(t, "ASRKB recording audio focus loss callback failed")
++        }
++    }
++
++    private fun abandonSafely(handle: AsrkbRecordingAudioFocusHandle) {
++        try {
++            gateway.abandonFocus(handle)
++        } catch (t: Throwable) {
++            Timber.w(t, "Failed to abandon ASRKB recording audio focus")
++        }
++    }
++}
++
++/** Serializes the audio-focus lease ownership of the current ASRKB session. */
++internal class AsrkbRecordingAudioFocusSessionOwner {
++    private val lock = Any()
++    private var activeController: AsrkbRecordingAudioFocusController? = null
++
++    fun acquire(controller: AsrkbRecordingAudioFocusController): Boolean = synchronized(lock) {
++        if (activeController != null || !controller.acquire()) return@synchronized false
++        activeController = controller
++        true
++    }
++
++    fun release() {
++        val controller = synchronized(lock) {
++            val current = activeController
++            activeController = null
++            current
++        }
++        controller?.release()
++    }
++
++    fun owns(controller: AsrkbRecordingAudioFocusController): Boolean = synchronized(lock) {
++        activeController === controller
++    }
++}
++
++private class AndroidAsrkbRecordingAudioFocusGateway(
++    context: Context,
++) : AsrkbRecordingAudioFocusGateway {
++    private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
++
++    override fun requestFocus(onFocusChange: (Int) -> Unit): AsrkbRecordingAudioFocusHandle? {
++        val manager = audioManager ?: run {
++            Timber.w("AudioManager is unavailable for ASRKB recording")
++            return null
++        }
++        val listener = AudioManager.OnAudioFocusChangeListener(onFocusChange)
++        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
++            requestModernFocus(manager, listener)
++        } else {
++            requestLegacyFocus(manager, listener)
++        }
++    }
++
++    override fun abandonFocus(handle: AsrkbRecordingAudioFocusHandle) {
++        (handle as? AndroidFocusHandle)?.abandon?.invoke()
++    }
++
++    @RequiresApi(Build.VERSION_CODES.O)
++    private fun requestModernFocus(
++        manager: AudioManager,
++        listener: AudioManager.OnAudioFocusChangeListener,
++    ): AsrkbRecordingAudioFocusHandle? {
++        val attributes =
++            AudioAttributes.Builder()
++                .setUsage(AudioAttributes.USAGE_ASSISTANT)
++                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
++                .build()
++        val request =
++            AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
++                .setAudioAttributes(attributes)
++                .setOnAudioFocusChangeListener(listener)
++                .build()
++        val result = manager.requestAudioFocus(request)
++        if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
++            Timber.w("ASRKB recording audio focus was not granted: result=$result")
++            return null
++        }
++        return AndroidFocusHandle {
++            val abandonResult = manager.abandonAudioFocusRequest(request)
++            if (abandonResult != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
++                Timber.w("ASRKB recording audio focus abandon returned result=$abandonResult")
++            }
++        }
++    }
++
++    @Suppress("DEPRECATION")
++    private fun requestLegacyFocus(
++        manager: AudioManager,
++        listener: AudioManager.OnAudioFocusChangeListener,
++    ): AsrkbRecordingAudioFocusHandle? {
++        val result =
++            manager.requestAudioFocus(
++                listener,
++                AudioManager.STREAM_MUSIC,
++                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE,
++            )
++        if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
++            Timber.w("Legacy ASRKB recording audio focus was not granted: result=$result")
++            return null
++        }
++        return AndroidFocusHandle {
++            val abandonResult = manager.abandonAudioFocus(listener)
++            if (abandonResult != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
++                Timber.w("Legacy ASRKB audio focus abandon returned result=$abandonResult")
++            }
++        }
++    }
++
++    private class AndroidFocusHandle(
++        val abandon: () -> Unit,
++    ) : AsrkbRecordingAudioFocusHandle
++}
+diff --git a/app/src/main/java/com/osfans/trime/link/AsrkbSpeechClient.kt b/app/src/main/java/com/osfans/trime/link/AsrkbSpeechClient.kt
+new file mode 100755
+index 0000000..914b6ee
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/link/AsrkbSpeechClient.kt
+@@ -0,0 +1,924 @@
++/*
++ * Minimal external AIDL client to link with BiBi Keyboard (asr-keyboard)
++ * via raw Binder transact calls (push PCM mode).
++ */
++package com.osfans.trime.link
++
++import android.Manifest
++import android.content.ComponentName
++import android.content.Context
++import android.content.Intent
++import android.content.ServiceConnection
++import android.content.pm.PackageManager
++import android.media.AudioFormat
++import android.media.AudioRecord
++import android.media.MediaRecorder
++import android.os.Binder
++import android.os.IBinder
++import android.os.Parcel
++import android.os.SystemClock
++import android.view.inputmethod.InputConnection
++import android.view.inputmethod.EditorInfo
++import androidx.lifecycle.lifecycleScope
++import androidx.core.content.ContextCompat
++import com.osfans.trime.R
++import com.osfans.trime.data.prefs.AppPrefs
++import com.osfans.trime.ime.core.TrimeInputMethodService
++import com.osfans.trime.util.toast
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++import timber.log.Timber
++import kotlin.math.max
++
++object AsrkbSpeechClient {
++    @Volatile
++    var onHoldingChanged: ((Boolean) -> Unit)? = null
++
++    private var bound = false
++    private var connection: ServiceConnection? = null
++    private var remote: IBinder? = null
++    private var callbackBinder: IBinder? = null
++    private var sessionId: Int = -1
++    private var currentState: Int = STATE_IDLE
++    @Volatile
++    private var holding: Boolean = false
++        set(value) {
++            if (field == value) return
++            field = value
++            val listener = onHoldingChanged ?: return
++            runCatching { listener.invoke(value) }
++                .onFailure { Timber.w(it, "onHoldingChanged failed") }
++        }
++    private var ctxRef: TrimeInputMethodService? = null
++    private var audioJob: Job? = null
++    private var audioRecord: AudioRecord? = null
++    private val recordingAudioFocusOwner = AsrkbRecordingAudioFocusSessionOwner()
++    private var hasPcmFrame: Boolean = false
++    private val editorGeneration = AsrkbEditorGenerationTracker()
++    private var sessionEditorGeneration: Long = 0L
++    private var editorInputType: Int = 0
++    private var editorImeOptions: Int = 0
++    private var targetInputConnection: InputConnection? = null
++    private var initialInputContext: AsrkbCursorSnapshot? = null
++    private var correctionReportingEnabled: Boolean = false
++    private val correctionTracker = AsrkbCorrectionTracker()
++    private var correctionJob: Job? = null
++    private var editorEventJob: Job? = null
++    private var negotiationJob: Job? = null
++    private val negotiationGate = AsrkbNegotiationGate()
++
++    fun startHoldSession(service: TrimeInputMethodService) {
++        if (bound && remote != null && sessionId > 0) {
++            if (!holding) {
++                Timber.w("Reset stale session before starting new hold (state=$currentState)")
++                val report = takeCorrectionReport("next_session")
++                if (report != null && dispatchEditReport(report) { startHoldSession(service) }) return
++                unbind(clearUi = false)
++            } else {
++                return
++            }
++        }
++
++        cancelNegotiation()
++        ctxRef = service
++        holding = true
++        hasPcmFrame = false
++        sessionEditorGeneration = editorGeneration.currentGeneration
++        prepareInputTarget(service)
++
++        val conn =
++            object : ServiceConnection {
++                override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
++                    val ctx = ctxRef ?: return
++                    if (!holding) {
++                        Timber.w("Service connected but session is no longer holding; ignore")
++                        unbind()
++                        return
++                    }
++                    try {
++                        val b = binder ?: throw IllegalStateException("no binder")
++                        remote = b
++
++                        val cbBinder =
++                            object : Binder() {
++                                override fun onTransact(
++                                    code: Int,
++                                    data: Parcel,
++                                    reply: Parcel?,
++                                    flags: Int,
++                                ): Boolean {
++                                    return try {
++                                        when (code) {
++                                            CB_onState -> {
++                                                data.enforceInterface(DESCRIPTOR_CB)
++                                                data.readInt()
++                                                val s = data.readInt()
++                                                data.readString()
++                                                currentState = s
++                                                reply?.writeNoException()
++                                                true
++                                            }
++                                            CB_onPartial -> {
++                                                data.enforceInterface(DESCRIPTOR_CB)
++                                                data.readInt()
++                                                val text = data.readString() ?: ""
++                                                ctx.lifecycleScope.launch {
++                                                    ctx.currentInputConnection?.setComposingText(text, 1)
++                                                }
++                                                reply?.writeNoException()
++                                                true
++                                            }
++                                            CB_onFinal -> {
++                                                data.enforceInterface(DESCRIPTOR_CB)
++                                                val callbackSessionId = data.readInt()
++                                                val text = data.readString() ?: ""
++                                                ctx.lifecycleScope.launch {
++                                                    ctx.commitText(text)
++                                                    startCorrectionObservation(ctx, callbackSessionId, text)
++                                                }
++                                                reply?.writeNoException()
++                                                true
++                                            }
++                                            CB_onError -> {
++                                                data.enforceInterface(DESCRIPTOR_CB)
++                                                data.readInt()
++                                                val codeVal = data.readInt()
++                                                val msg = data.readString()
++                                                toast(ctx, mapCallbackError(ctx, codeVal, msg))
++                                                unbind()
++                                                reply?.writeNoException()
++                                                true
++                                            }
++                                            CB_onAmplitude -> {
++                                                data.enforceInterface(DESCRIPTOR_CB)
++                                                data.readInt()
++                                                val amp = data.readFloat()
++                                                runCatching { VoiceOverlayUiBridge.onAmplitude?.invoke(amp) }
++                                                reply?.writeNoException()
++                                                true
++                                            }
++                                            IBinder.INTERFACE_TRANSACTION -> {
++                                                reply?.writeString(DESCRIPTOR_CB)
++                                                true
++                                            }
++                                            else -> super.onTransact(code, data, reply, flags)
++                                        }
++                                    } catch (t: Throwable) {
++                                        Timber.w(t, "callback transact handle failed (code=$code)")
++                                        false
++                                    }
++                                }
++                            }
++                        callbackBinder = cbBinder
++
++                        val data = Parcel.obtain()
++                        val reply = Parcel.obtain()
++                        var sid = -999
++                        try {
++                            data.writeInterfaceToken(DESCRIPTOR_SVC)
++                            // push PCM mode: presence=0 means no SpeechConfig; server follows its current settings
++                            data.writeInt(0)
++                            data.writeStrongBinder(cbBinder)
++                            b.transact(TRANSACTION_startPcmSession, data, reply, 0)
++                            reply.readException()
++                            sid = reply.readInt()
++                        } finally {
++                            try {
++                                data.recycle()
++                            } catch (t: Throwable) {
++                                Timber.w(t, "data.recycle failed")
++                            }
++                            try {
++                                reply.recycle()
++                            } catch (t: Throwable) {
++                                Timber.w(t, "reply.recycle failed")
++                            }
++                        }
++
++                        if (sid <= 0) {
++                            toast(ctx, mapStartError(ctx, sid))
++                            unbind()
++                        } else {
++                            sessionId = sid
++                            currentState = STATE_RECORDING
++                            val generation = sessionEditorGeneration
++                            val inputConnection = targetInputConnection
++                            val inputType = editorInputType
++                            val imeOptions = editorImeOptions
++                            val token = negotiationGate.begin(sid, generation, inputConnection)
++                            negotiationJob = ctx.lifecycleScope.launch {
++                                var negotiatedContext: AsrkbCursorSnapshot? = null
++                                val correctionEnabled = negotiateOptionalInputThenContinue(
++                                    queryRequirements = {
++                                        withContext(Dispatchers.IO) { queryInputRequirements(b, sid) }
++                                    },
++                                    attachInputContext = { requirements ->
++                                        withContext(Dispatchers.IO) {
++                                            attachInputContextIfRequested(
++                                                binder = b,
++                                                token = token,
++                                                requirements = requirements,
++                                                inputType = inputType,
++                                                imeOptions = imeOptions
++                                            )?.also { negotiatedContext = it } != null
++                                        }
++                                    },
++                                    continueOriginalAsr = {
++                                        if (negotiationGate.isCurrent(token)) startAudioStreaming(ctx)
++                                    }
++                                )
++                                if (negotiationGate.isCurrent(token)) {
++                                    initialInputContext = negotiatedContext
++                                    correctionReportingEnabled = correctionEnabled
++                                }
++                            }
++                        }
++                    } catch (t: Throwable) {
++                        Timber.w(t, "bind/start failed")
++                        toast(ctx, ctx.getString(R.string.asrkb_err_connect_failed))
++                        unbind()
++                    }
++                }
++
++                override fun onServiceDisconnected(name: ComponentName?) {
++                    unbind()
++                }
++            }
++
++        connection = conn
++        val candidates =
++            listOf(
++                ComponentName("com.brycewg.asrkb.pro", "com.brycewg.asrkb.api.ExternalSpeechService"),
++                ComponentName("com.brycewg.asrkb", "com.brycewg.asrkb.api.ExternalSpeechService"),
++            )
++        for (c in candidates) {
++            val intent = Intent().apply { component = c }
++            try {
++                bound = service.bindService(intent, conn, Context.BIND_AUTO_CREATE)
++                if (bound) break
++            } catch (t: Throwable) {
++                Timber.d(t, "bind attempt failed: ${c.packageName}")
++            }
++        }
++        if (!bound) {
++            toast(service, service.getString(R.string.asrkb_err_service_not_found))
++            unbind()
++        }
++    }
++
++    fun stopHoldSession() {
++        if (!holding) return
++        holding = false
++
++        when (currentState) {
++            STATE_RECORDING, STATE_PROCESSING -> if (hasPcmFrame) finishPcmSession() else cancelAndUnbind()
++            else -> cancelAndUnbind()
++        }
++    }
++
++    fun isHolding(): Boolean = holding
++
++    internal fun onServiceDestroyed(service: TrimeInputMethodService) {
++        if (ctxRef !== service) return
++        unbind()
++    }
++
++    private fun cancelAndUnbind() {
++        cancelSession()
++        unbind()
++    }
++
++    private fun unbind(clearUi: Boolean = true) {
++        if (clearUi) {
++            runCatching { VoiceOverlayUiBridge.onDone?.invoke() }
++            VoiceOverlayUiBridge.clear()
++        }
++        callbackBinder = null
++        cancelNegotiation()
++        correctionJob?.cancel()
++        correctionJob = null
++        editorEventJob?.cancel()
++        editorEventJob = null
++        correctionTracker.cancel()
++        val ctx = ctxRef
++        stopAudioStreaming()
++
++        val conn = connection
++        if (bound && conn != null && ctx != null) {
++            try {
++                ctx.unbindService(conn)
++            } catch (t: Throwable) {
++                Timber.w(t, "unbindService failed")
++            }
++        }
++
++        bound = false
++        connection = null
++        remote = null
++        sessionId = -1
++        currentState = STATE_IDLE
++        holding = false
++        ctxRef = null
++        hasPcmFrame = false
++        correctionReportingEnabled = false
++        targetInputConnection = null
++        initialInputContext = null
++    }
++
++    private fun finishPcmSession() {
++        val b = remote ?: return
++        val sid = sessionId
++        if (sid <= 0) return
++
++        stopAudioStreaming()
++
++        val data = Parcel.obtain()
++        val reply = Parcel.obtain()
++        try {
++            data.writeInterfaceToken(DESCRIPTOR_SVC)
++            data.writeInt(sid)
++            b.transact(TRANSACTION_finishPcm, data, reply, 0)
++            reply.readException()
++        } catch (t: Throwable) {
++            Timber.w(t, "finishPcmSession failed")
++            cancelAndUnbind()
++        } finally {
++            try {
++                data.recycle()
++            } catch (t: Throwable) {
++                Timber.w(t, "data.recycle failed")
++            }
++            try {
++                reply.recycle()
++            } catch (t: Throwable) {
++                Timber.w(t, "reply.recycle failed")
++            }
++        }
++    }
++
++    private fun cancelSession() {
++        val b = remote ?: return
++        val sid = sessionId
++        if (sid <= 0) return
++
++        stopAudioStreaming()
++
++        val data = Parcel.obtain()
++        val reply = Parcel.obtain()
++        try {
++            data.writeInterfaceToken(DESCRIPTOR_SVC)
++            data.writeInt(sid)
++            b.transact(TRANSACTION_cancelSession, data, reply, 0)
++            reply.readException()
++        } catch (t: Throwable) {
++            Timber.w(t, "cancelSession failed")
++        } finally {
++            try {
++                data.recycle()
++            } catch (t: Throwable) {
++                Timber.w(t, "data.recycle failed")
++            }
++            try {
++                reply.recycle()
++            } catch (t: Throwable) {
++                Timber.w(t, "reply.recycle failed")
++            }
++        }
++    }
++
++    private fun prepareInputTarget(service: TrimeInputMethodService) {
++        correctionReportingEnabled = false
++        correctionTracker.cancel()
++        correctionJob?.cancel()
++        correctionJob = null
++        val info = service.currentInputEditorInfo
++        editorInputType = info.inputType
++        editorImeOptions = info.imeOptions
++        if (sessionEditorGeneration <= 0L ||
++            !AsrkbEditorPrivacy.isEligible(editorInputType, editorImeOptions)
++        ) {
++            targetInputConnection = null
++            initialInputContext = null
++            return
++        }
++        targetInputConnection = service.currentInputConnection
++        initialInputContext = null
++    }
++
++    private fun queryInputRequirements(binder: IBinder, sid: Int): Int? {
++        return optionalTransactionInt(binder, TRANSACTION_getInputRequirements) { data ->
++            data.writeInt(sid)
++        }
++    }
++
++    private fun attachInputContextIfRequested(
++        binder: IBinder,
++        token: AsrkbNegotiationToken,
++        requirements: Int,
++        inputType: Int,
++        imeOptions: Int
++    ): AsrkbCursorSnapshot? {
++        if (requirements == 0 || !negotiationGate.isCurrent(token)) return null
++        val connection = token.connection as? InputConnection ?: return null
++        val inputContext = captureInputContext(connection) ?: return null
++        if (!negotiationGate.isCurrent(token)) return null
++        val attached = optionalTransactionInt(binder, TRANSACTION_setInputContext) { data ->
++            data.writeInt(token.sessionId)
++            data.writeLong(token.generation)
++            data.writeInt(inputType)
++            data.writeInt(imeOptions)
++            data.writeString(inputContext.beforeCursor)
++            data.writeString(inputContext.afterCursor)
++        } == 1
++        return inputContext.takeIf { attached }
++    }
++
++    private fun startCorrectionObservation(
++        service: TrimeInputMethodService,
++        callbackSessionId: Int,
++        finalText: String
++    ) {
++        stopAudioStreaming()
++        runCatching { VoiceOverlayUiBridge.onDone?.invoke() }
++        VoiceOverlayUiBridge.clear()
++        holding = false
++        currentState = STATE_IDLE
++        val connection = targetInputConnection
++        val initial = initialInputContext
++        if (!correctionReportingEnabled || callbackSessionId != sessionId || connection == null || initial == null) {
++            unbind(clearUi = false)
++            return
++        }
++
++        correctionJob = service.lifecycleScope.launch {
++            delay(COMMIT_VERIFY_DELAY_MS)
++            if (service.currentInputConnection !== connection ||
++                editorGeneration.currentGeneration != sessionEditorGeneration
++            ) {
++                unbind(clearUi = false)
++                return@launch
++            }
++            val committed = withContext(Dispatchers.IO) { captureInputContext(connection) }
++            if (committed == null || !correctionTracker.start(
++                    sessionId = callbackSessionId,
++                    generation = sessionEditorGeneration,
++                    initial = initial,
++                    finalText = finalText,
++                    committed = committed,
++                    nowMs = SystemClock.uptimeMillis()
++                )
++            ) {
++                unbind(clearUi = false)
++                return@launch
++            }
++
++            while (true) {
++                delay(CORRECTION_POLL_MS)
++                if (ctxRef !== service ||
++                    service.currentInputConnection !== connection ||
++                    editorGeneration.currentGeneration != sessionEditorGeneration
++                ) {
++                    val report = correctionTracker.finishLast(sessionEditorGeneration, "finish_input")
++                    if (report != null && dispatchEditReport(report)) return@launch
++                    unbind(clearUi = false)
++                    return@launch
++                }
++                val snapshot = withContext(Dispatchers.IO) { captureInputContext(connection) }
++                if (snapshot == null) {
++                    val report = correctionTracker.finishLast(sessionEditorGeneration, "finish_input")
++                    if (report != null && dispatchEditReport(report)) return@launch
++                    unbind(clearUi = false)
++                    return@launch
++                }
++                val report = correctionTracker.update(
++                    generation = sessionEditorGeneration,
++                    snapshot = snapshot,
++                    nowMs = SystemClock.uptimeMillis()
++                ) ?: continue
++                if (!dispatchEditReport(report)) unbind(clearUi = false)
++                return@launch
++            }
++        }
++    }
++
++    private fun takeCorrectionReport(reason: String): AsrkbCorrectionReport? {
++        if (!correctionReportingEnabled) return null
++        val snapshot = targetInputConnection?.let(::captureInputContext)
++        return if (snapshot != null) {
++            correctionTracker.finish(sessionEditorGeneration, snapshot, reason)
++        } else {
++            correctionTracker.finishLast(sessionEditorGeneration, reason)
++        }
++    }
++
++    internal fun onStartInput(
++        info: EditorInfo,
++        restarting: Boolean
++    ) {
++        val previous = editorGeneration.currentGeneration
++        val current = editorGeneration.onStartInput(info.asAsrkbEditorIdentity(), restarting)
++        if (current == previous) return
++        if (bound) {
++            val report = takeCorrectionReport("next_session")
++            if (report != null && dispatchEditReport(report)) return
++            cancelAndUnbind()
++            return
++        }
++        cancelNegotiation()
++        correctionTracker.cancel()
++        correctionJob?.cancel()
++        editorEventJob?.cancel()
++        correctionReportingEnabled = false
++        targetInputConnection = null
++        initialInputContext = null
++    }
++
++    internal fun onFinishInput() {
++        val report = takeCorrectionReport("finish_input")
++        val dispatched = report?.let(::dispatchEditReport) == true
++        cancelNegotiation()
++        editorGeneration.onFinishInput()
++        correctionTracker.cancel()
++        correctionJob?.cancel()
++        editorEventJob?.cancel()
++        if (!dispatched && !holding && bound) unbind(clearUi = false)
++    }
++
++    internal fun onEditorAction() {
++        val report = takeCorrectionReport("editor_action") ?: return
++        if (!dispatchEditReport(report)) unbind(clearUi = false)
++    }
++
++    internal fun onEditorEvent(service: TrimeInputMethodService) {
++        if (!correctionTracker.isActive() ||
++            editorGeneration.currentGeneration != sessionEditorGeneration
++        ) {
++            return
++        }
++        val connection = targetInputConnection ?: return
++        val generation = sessionEditorGeneration
++        val binder = remote ?: return
++        if (service.currentInputConnection !== connection) return
++        editorEventJob?.cancel()
++        editorEventJob = service.lifecycleScope.launch(Dispatchers.IO) {
++            val snapshot = captureInputContext(connection) ?: return@launch
++            val report = correctionTracker.update(
++                generation = generation,
++                snapshot = snapshot,
++                nowMs = SystemClock.uptimeMillis()
++            ) ?: return@launch
++            reportEdit(binder, report)
++            withContext(Dispatchers.Main) { unbind(clearUi = false) }
++        }
++    }
++
++    private fun dispatchEditReport(
++        report: AsrkbCorrectionReport,
++        afterUnbind: () -> Unit = {}
++    ): Boolean {
++        val binder = remote ?: return false
++        val scope = ctxRef?.lifecycleScope ?: return false
++        launchAsrkbEditReport(
++            scope = scope,
++            report = report,
++            submit = { reportEdit(binder, it) },
++            onComplete = {
++                scope.launch(Dispatchers.Main) {
++                    if (remote === binder) unbind(clearUi = false)
++                    afterUnbind()
++                }
++            }
++        )
++        return true
++    }
++
++    private fun reportEdit(binder: IBinder, report: AsrkbCorrectionReport) {
++        val result = optionalTransactionInt(binder, TRANSACTION_reportEdit) { data ->
++            data.writeInt(report.sessionId)
++            data.writeLong(report.generation)
++            data.writeString(report.snapshot.beforeCursor)
++            data.writeString(report.snapshot.afterCursor)
++            data.writeString(report.reason)
++        }
++        if (result != 1) Timber.w("Correction report rejected: reason=${report.reason}, result=$result")
++    }
++
++    private fun cancelNegotiation() {
++        negotiationGate.invalidate()
++        negotiationJob?.cancel()
++        negotiationJob = null
++    }
++
++    private fun EditorInfo.asAsrkbEditorIdentity() = AsrkbEditorIdentity(
++        packageName = packageName.orEmpty(),
++        fieldId = fieldId,
++        inputType = inputType,
++        imeOptions = imeOptions
++    )
++
++    private fun captureInputContext(connection: InputConnection): AsrkbCursorSnapshot? {
++        return try {
++            val before = connection.getTextBeforeCursor(AsrkbCursorSnapshot.MAX_CONTEXT_CHARS, 0)
++                ?.toString() ?: return null
++            val after = connection.getTextAfterCursor(AsrkbCursorSnapshot.MAX_CONTEXT_CHARS, 0)
++                ?.toString() ?: return null
++            AsrkbCursorSnapshot(before, after).bounded()
++        } catch (t: Throwable) {
++            Timber.d(t, "Input context unavailable")
++            null
++        }
++    }
++
++    private inline fun optionalTransactionInt(
++        binder: IBinder,
++        code: Int,
++        fill: (Parcel) -> Unit
++    ): Int? {
++        val data = Parcel.obtain()
++        val reply = Parcel.obtain()
++        return try {
++            data.writeInterfaceToken(DESCRIPTOR_SVC)
++            fill(data)
++            if (!binder.transact(code, data, reply, 0)) return null
++            reply.readException()
++            reply.readInt()
++        } catch (t: Throwable) {
++            Timber.d(t, "Optional ASRKB transaction unsupported (code=$code)")
++            null
++        } finally {
++            data.recycle()
++            reply.recycle()
++        }
++    }
++
++    private fun startAudioStreaming(service: TrimeInputMethodService) {
++        stopAudioStreaming()
++
++        val permGranted =
++            ContextCompat.checkSelfPermission(service, Manifest.permission.RECORD_AUDIO) ==
++                PackageManager.PERMISSION_GRANTED
++        if (!permGranted) {
++            val intent =
++                Intent(service, MicPermissionActivity::class.java).apply {
++                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
++                }
++            try {
++                service.startActivity(intent)
++            } catch (t: Throwable) {
++                Timber.w(t, "Failed to start MicPermissionActivity")
++                toast(service, service.getString(R.string.asrkb_client_need_mic_permission))
++            }
++            unbind()
++            return
++        }
++
++        acquireRecordingAudioFocusIfEnabled(service)
++
++        audioJob =
++            service.lifecycleScope.launch(Dispatchers.IO) {
++                val sr = 16000
++                val ch = AudioFormat.CHANNEL_IN_MONO
++                val fmt = AudioFormat.ENCODING_PCM_16BIT
++                val minBuf = AudioRecord.getMinBufferSize(sr, ch, fmt)
++                val bytesPerSample = 2
++                val chunkBytes = (sr * 200 / 1000) * bytesPerSample
++                val bufSize = max(minBuf, chunkBytes * 2)
++
++                fun createAudioRecord(source: Int): AudioRecord? {
++                    val rec =
++                        try {
++                            AudioRecord(
++                                source,
++                                sr,
++                                ch,
++                                fmt,
++                                bufSize,
++                            )
++                        } catch (t: Throwable) {
++                            Timber.w(t, "AudioRecord construct failed (source=$source)")
++                            null
++                        }
++                    if (rec == null) return null
++                    if (rec.state != AudioRecord.STATE_INITIALIZED) {
++                        Timber.w("AudioRecord not initialized (source=$source, state=${rec.state})")
++                        runCatching { rec.release() }
++                        return null
++                    }
++                    return rec
++                }
++
++                fun toastAndUnbind() {
++                    service.lifecycleScope.launch {
++                        toast(service, service.getString(R.string.asrkb_err_audio_record_failed))
++                        unbind()
++                    }
++                }
++
++                var usedSource = MediaRecorder.AudioSource.VOICE_RECOGNITION
++                var rec = createAudioRecord(usedSource) ?: run {
++                    usedSource = MediaRecorder.AudioSource.MIC
++                    createAudioRecord(usedSource)
++                }
++                if (rec == null) {
++                    toastAndUnbind()
++                    return@launch
++                }
++
++                audioRecord = rec
++                try {
++                    rec.startRecording()
++                } catch (t: Throwable) {
++                    if (usedSource == MediaRecorder.AudioSource.MIC) {
++                        Timber.e(t, "AudioRecord MIC failed")
++                        toastAndUnbind()
++                        return@launch
++                    }
++
++                    Timber.w(t, "AudioRecord start failed, fallback MIC")
++                    runCatching { rec.release() }.onFailure { e ->
++                        Timber.w(e, "AudioRecord release failed")
++                    }
++
++                    usedSource = MediaRecorder.AudioSource.MIC
++                    val micRec = createAudioRecord(usedSource)
++                    if (micRec == null) {
++                        toastAndUnbind()
++                        return@launch
++                    }
++                    audioRecord = micRec
++                    rec = micRec
++                    try {
++                        rec.startRecording()
++                    } catch (e: Throwable) {
++                        Timber.e(e, "AudioRecord MIC failed")
++                        toastAndUnbind()
++                        return@launch
++                    }
++                }
++
++                val chunk = ByteArray(chunkBytes)
++                var notifiedRecordingStarted = false
++                while (true) {
++                    if (sessionId <= 0 || remote == null) break
++                    val n =
++                        try {
++                            audioRecord?.read(chunk, 0, chunk.size) ?: -1
++                        } catch (_: Throwable) {
++                            -1
++                        }
++                    if (n < 0) break
++                    if (n == 0) {
++                        delay(10)
++                        continue
++                    }
++                    if (!notifiedRecordingStarted) {
++                        notifiedRecordingStarted = true
++                        runCatching { VoiceOverlayUiBridge.onRecordingStarted?.invoke() }
++                    }
++                    writePcmFrame(chunk, n, sr, 1)
++                }
++            }
++    }
++
++    private fun stopAudioStreaming() {
++        try {
++            audioJob?.cancel()
++        } catch (t: Throwable) {
++            Timber.w(t, "audioJob.cancel failed")
++        } finally {
++            audioJob = null
++        }
++
++        val rec = audioRecord
++        if (rec != null) {
++            try {
++                rec.stop()
++            } catch (t: Throwable) {
++                Timber.w(t, "AudioRecord stop failed")
++            }
++            try {
++                rec.release()
++            } catch (t: Throwable) {
++                Timber.w(t, "AudioRecord release failed")
++            }
++            audioRecord = null
++        }
++
++        recordingAudioFocusOwner.release()
++    }
++
++    private fun acquireRecordingAudioFocusIfEnabled(service: TrimeInputMethodService) {
++        val enabled =
++            AppPrefs.defaultInstance().general.bibiPauseMediaWhileRecording.getValue()
++        if (!enabled) {
++            Timber.d("ASRKB media avoidance disabled; skip audio focus request")
++            return
++        }
++
++        val executor = ContextCompat.getMainExecutor(service)
++        lateinit var controller: AsrkbRecordingAudioFocusController
++        controller =
++            AsrkbRecordingAudioFocusController(service) { loss ->
++                Timber.w("ASRKB recording audio focus lost: $loss")
++                executor.execute {
++                    if (recordingAudioFocusOwner.owns(controller) && holding) {
++                        stopHoldSession()
++                    }
++                }
++            }
++        if (!recordingAudioFocusOwner.acquire(controller)) {
++            Timber.w("ASRKB recording continues without audio focus")
++        }
++    }
++
++    private fun writePcmFrame(buf: ByteArray, len: Int, sr: Int, ch: Int) {
++        val b = remote ?: return
++        val sid = sessionId
++        if (sid <= 0) return
++        if (len > 0) hasPcmFrame = true
++
++        val data = Parcel.obtain()
++        val reply = Parcel.obtain()
++        try {
++            data.writeInterfaceToken(DESCRIPTOR_SVC)
++            data.writeInt(sid)
++            if (len == buf.size) {
++                data.writeByteArray(buf)
++            } else {
++                data.writeByteArray(buf.copyOf(len))
++            }
++            data.writeInt(sr)
++            data.writeInt(ch)
++            b.transact(TRANSACTION_writePcm, data, reply, 0)
++            reply.readException()
++        } catch (t: Throwable) {
++            Timber.w(t, "writePcm transact failed")
++        } finally {
++            try {
++                data.recycle()
++            } catch (t: Throwable) {
++                Timber.w(t, "data.recycle failed")
++            }
++            try {
++                reply.recycle()
++            } catch (t: Throwable) {
++                Timber.w(t, "reply.recycle failed")
++            }
++        }
++    }
++
++    private fun toast(ctx: Context, msg: String) {
++        try {
++            ContextCompat.getMainExecutor(ctx).execute {
++                ctx.toast(msg)
++            }
++        } catch (t: Throwable) {
++            Timber.w(t, "Toast failed")
++        }
++    }
++
++    private fun mapStartError(ctx: Context, code: Int): String {
++        return when (code) {
++            -2 -> ctx.getString(R.string.asrkb_err_busy)
++            -3 -> ctx.getString(R.string.asrkb_err_feature_disabled)
++            -5 -> ctx.getString(R.string.asrkb_err_unsupported)
++            else -> ctx.getString(R.string.asrkb_err_start_failed_with_code, code)
++        }
++    }
++
++    private fun mapCallbackError(ctx: Context, code: Int, msg: String?): String {
++        return when (code) {
++            403 -> ctx.getString(R.string.asrkb_err_feature_disabled)
++            else -> ctx.getString(R.string.asrkb_err_service_error_with_code, code)
++        }.let { base ->
++            if (msg.isNullOrBlank()) base else "$base: $msg"
++        }
++    }
++
++    private const val DESCRIPTOR_SVC = "com.brycewg.asrkb.aidl.IExternalSpeechService"
++    private const val TRANSACTION_cancelSession = IBinder.FIRST_CALL_TRANSACTION + 2
++    private const val TRANSACTION_startPcmSession = IBinder.FIRST_CALL_TRANSACTION + 6
++    private const val TRANSACTION_writePcm = IBinder.FIRST_CALL_TRANSACTION + 7
++    private const val TRANSACTION_finishPcm = IBinder.FIRST_CALL_TRANSACTION + 8
++    private const val TRANSACTION_getInputRequirements = IBinder.FIRST_CALL_TRANSACTION + 9
++    private const val TRANSACTION_setInputContext = IBinder.FIRST_CALL_TRANSACTION + 10
++    private const val TRANSACTION_reportEdit = IBinder.FIRST_CALL_TRANSACTION + 11
++
++    private const val COMMIT_VERIFY_DELAY_MS = 40L
++    private const val CORRECTION_POLL_MS = 1_000L
++
++    private const val DESCRIPTOR_CB = "com.brycewg.asrkb.aidl.ISpeechCallback"
++    private const val CB_onState = IBinder.FIRST_CALL_TRANSACTION + 0
++    private const val CB_onPartial = IBinder.FIRST_CALL_TRANSACTION + 1
++    private const val CB_onFinal = IBinder.FIRST_CALL_TRANSACTION + 2
++    private const val CB_onError = IBinder.FIRST_CALL_TRANSACTION + 3
++    private const val CB_onAmplitude = IBinder.FIRST_CALL_TRANSACTION + 4
++
++    private const val STATE_IDLE = 0
++    private const val STATE_RECORDING = 1
++    private const val STATE_PROCESSING = 2
++    private const val STATE_ERROR = 3
++}
+diff --git a/app/src/main/java/com/osfans/trime/link/AsrkbVoiceHoldSessionController.kt b/app/src/main/java/com/osfans/trime/link/AsrkbVoiceHoldSessionController.kt
+new file mode 100755
+index 0000000..d5cbc6c
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/link/AsrkbVoiceHoldSessionController.kt
+@@ -0,0 +1,70 @@
++/*
++ * SPDX-FileCopyrightText: 2026 BryceWG
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.link
++
++import androidx.core.content.ContextCompat
++import com.osfans.trime.ime.core.TrimeInputMethodService
++
++/**
++ * Shared controller for the ASRKB hold-to-talk session and overlay callbacks.
++ * It keeps the UI bridge wiring out of keyboard/tool-bar entry points so future merges stay smaller.
++ */
++internal class AsrkbVoiceHoldSessionController(
++    private val service: TrimeInputMethodService,
++    private val showOverlay: () -> Unit,
++    private val startWave: () -> Unit,
++    private val updateAmplitude: (Float) -> Unit,
++    private val hideOverlay: () -> Unit,
++    private val onSessionFinished: (() -> Unit)? = null,
++) {
++    private var startedByController = false
++
++    fun isRunning(): Boolean = startedByController
++
++    fun start() {
++        if (startedByController) return
++
++        val executor = ContextCompat.getMainExecutor(service)
++        showOverlay()
++        startedByController = true
++
++        VoiceOverlayUiBridge.onRecordingStarted = {
++            executor.execute {
++                startWave()
++            }
++        }
++        VoiceOverlayUiBridge.onAmplitude = { amplitude ->
++            executor.execute {
++                updateAmplitude(amplitude)
++            }
++        }
++        VoiceOverlayUiBridge.onDone = {
++            startedByController = false
++            executor.execute {
++                hideOverlay()
++                onSessionFinished?.invoke()
++            }
++            VoiceOverlayUiBridge.clear()
++        }
++
++        AsrkbSpeechClient.startHoldSession(service)
++    }
++
++    fun stopIfStarted() {
++        if (!startedByController) return
++        stop()
++    }
++
++    fun stop() {
++        startedByController = false
++        hideOverlay()
++        VoiceOverlayUiBridge.clear()
++        onSessionFinished?.invoke()
++        if (AsrkbSpeechClient.isHolding()) {
++            AsrkbSpeechClient.stopHoldSession()
++        }
++    }
++}
+diff --git a/app/src/main/java/com/osfans/trime/link/MicPermissionActivity.kt b/app/src/main/java/com/osfans/trime/link/MicPermissionActivity.kt
+new file mode 100755
+index 0000000..03b391e
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/link/MicPermissionActivity.kt
+@@ -0,0 +1,36 @@
++package com.osfans.trime.link
++
++import android.Manifest
++import android.content.pm.PackageManager
++import android.os.Bundle
++import androidx.activity.ComponentActivity
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.core.content.ContextCompat
++
++/**
++ * 麦克风权限请求 Activity（用于从 InputMethodService 场景触发运行时权限弹窗）。
++ */
++class MicPermissionActivity : ComponentActivity() {
++    private val requestMicPermission =
++        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
++            finish()
++        }
++
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        maybeRequest()
++    }
++
++    private fun maybeRequest() {
++        val granted = ContextCompat.checkSelfPermission(
++            this,
++            Manifest.permission.RECORD_AUDIO,
++        ) == PackageManager.PERMISSION_GRANTED
++        if (granted) {
++            finish()
++        } else {
++            requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
++        }
++    }
++}
++
+diff --git a/app/src/main/java/com/osfans/trime/link/VoiceOverlayUiBridge.kt b/app/src/main/java/com/osfans/trime/link/VoiceOverlayUiBridge.kt
+new file mode 100755
+index 0000000..cfb1ccf
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/link/VoiceOverlayUiBridge.kt
+@@ -0,0 +1,18 @@
++package com.osfans.trime.link
++
++/**
++ * 语音覆盖层 UI 桥接：
++ * - 键盘侧注册回调以更新/关闭覆盖层；
++ * - AIDL 客户端在回调线程里调用这些回调以驱动波形动画。
++ */
++object VoiceOverlayUiBridge {
++    @Volatile var onRecordingStarted: (() -> Unit)? = null
++    @Volatile var onAmplitude: ((Float) -> Unit)? = null
++    @Volatile var onDone: (() -> Unit)? = null
++
++    fun clear() {
++        onRecordingStarted = null
++        onAmplitude = null
++        onDone = null
++    }
++}
+diff --git a/app/src/main/java/com/osfans/trime/ui/main/settings/ProfileSettingsFragment.kt b/app/src/main/java/com/osfans/trime/ui/main/settings/ProfileSettingsFragment.kt
+index b2e9d3f..7b6f6ec 100644
+--- a/app/src/main/java/com/osfans/trime/ui/main/settings/ProfileSettingsFragment.kt
++++ b/app/src/main/java/com/osfans/trime/ui/main/settings/ProfileSettingsFragment.kt
+@@ -15,6 +15,7 @@ import androidx.preference.ListPreference
+ import androidx.preference.Preference
+ import androidx.preference.SwitchPreferenceCompat
+ import com.osfans.trime.R
++import com.osfans.trime.data.backup.BackupRestoreDialog
+ import com.osfans.trime.data.base.DataManager
+ import com.osfans.trime.data.prefs.AppPrefs
+ import com.osfans.trime.data.prefs.PreferenceDelegate
+@@ -37,6 +38,7 @@ import kotlinx.coroutines.withContext
+ 
+ class ProfileSettingsFragment : PaddingPreferenceFragment() {
+     private val viewModel: MainViewModel by activityViewModels()
++    private val backupRestoreDialog = BackupRestoreDialog(this)
+     private val prefs = AppPrefs.Companion.defaultInstance().profile
+     private val backgroundSyncEnable = prefs.periodicBackgroundSync
+     private val lastSyncTime by prefs.lastBackgroundSyncTime
+@@ -82,6 +84,7 @@ class ProfileSettingsFragment : PaddingPreferenceFragment() {
+ 
+     override fun onCreate(savedInstanceState: Bundle?) {
+         super.onCreate(savedInstanceState)
++        backupRestoreDialog.setupLaunchers()
+         prefs.periodicBackgroundSync.registerOnChangeListener(onBackgroundSyncEnable)
+         prefs.periodicBackgroundSyncInterval.registerOnChangeListener(onSyncIntervalChange)
+         prefs.externalRimeTreeUri.registerOnChangeListener(onDataPathChange)
+@@ -369,6 +372,15 @@ class ProfileSettingsFragment : PaddingPreferenceFragment() {
+                         }.show()
+                 }
+             }
++            addCategory(R.string.dahi_backup_title) {
++                isIconSpaceReserved = false
++                addPreference(R.string.dahi_backup, R.string.dahi_backup_summary) {
++                    backupRestoreDialog.showBackupDialog()
++                }
++                addPreference(R.string.dahi_restore, R.string.dahi_restore_summary) {
++                    backupRestoreDialog.showRestoreDialog()
++                }
++            }
+         }
+         updateStorageModeUi()
+     }
+diff --git a/app/src/main/res/drawable/ic_baseline_drag_handle_24.xml b/app/src/main/res/drawable/ic_baseline_drag_handle_24.xml
+new file mode 100755
+index 0000000..8bfa808
+--- /dev/null
++++ b/app/src/main/res/drawable/ic_baseline_drag_handle_24.xml
+@@ -0,0 +1,16 @@
++<!--
++  ~ SPDX-FileCopyrightText: 2015 - 2025 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@android:color/white"
++        android:pathData="M20,9L4,9v2h16L20,9zM4,15h16v-2L4,13v2z" />
++
++</vector>
+diff --git a/app/src/main/res/drawable/ic_baseline_mic_24.xml b/app/src/main/res/drawable/ic_baseline_mic_24.xml
+new file mode 100755
+index 0000000..112383c
+--- /dev/null
++++ b/app/src/main/res/drawable/ic_baseline_mic_24.xml
+@@ -0,0 +1,14 @@
++<!--
++  ~ SPDX-FileCopyrightText: 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++  <path
++      android:fillColor="@android:color/white"
++      android:pathData="M12,14c1.66,0 3,-1.34 3,-3V5c0,-1.66 -1.34,-3 -3,-3S9,3.34 9,5v6c0,1.66 1.34,3 3,3zM17,11c0,2.76 -2.24,5 -5,5s-5,-2.24 -5,-5H5c0,3.53 2.61,6.43 6,6.92V21h2v-3.08c3.39,-0.49 6,-3.39 6,-6.92H17z"/>
++</vector>
+diff --git a/app/src/main/res/drawable/ic_baseline_stop_24.xml b/app/src/main/res/drawable/ic_baseline_stop_24.xml
+new file mode 100755
+index 0000000..28278f4
+--- /dev/null
++++ b/app/src/main/res/drawable/ic_baseline_stop_24.xml
+@@ -0,0 +1,14 @@
++<!--
++  ~ SPDX-FileCopyrightText: 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++  <path
++      android:fillColor="@android:color/white"
++      android:pathData="M6,6h12v12H6z"/>
++</vector>
+diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
+index c3938e9..ae6419e 100644
+--- a/app/src/main/res/values-zh-rCN/strings.xml
++++ b/app/src/main/res/values-zh-rCN/strings.xml
+@@ -7,8 +7,8 @@
+ 
+ <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+     <!-- 输入法平台名称  -->
+-    <string name="app_name_release">同文输入法</string>
+-    <string name="app_name_debug">同文输入法（调试）</string>
++    <string name="app_name_release">同文输入法大海版</string>
++    <string name="app_name_debug">同文输入法大海版（调试）</string>
+     <string name="qq_group_1">同文 QQ 群 1</string>
+     <string name="qq_group_2">同文 QQ 群 2</string>
+     <string name="rime_qq_group">中州韵 QQ 群</string>
+diff --git a/app/src/main/res/values-zh-rCN/strings_dahi_backup.xml b/app/src/main/res/values-zh-rCN/strings_dahi_backup.xml
+new file mode 100755
+index 0000000..3dc7449
+--- /dev/null
++++ b/app/src/main/res/values-zh-rCN/strings_dahi_backup.xml
+@@ -0,0 +1,34 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++SPDX-FileCopyrightText: 2026 Rime community
++
++SPDX-License-Identifier: GPL-3.0-or-later
++-->
++
++<resources>
++    <string name="dahi_backup_title">备份与还原</string>
++    <string name="dahi_backup">备份</string>
++    <string name="dahi_backup_summary">备份首选项、剪贴板和收藏夹数据（加密保存）</string>
++    <string name="dahi_restore">还原</string>
++    <string name="dahi_restore_summary">从加密备份文件还原数据</string>
++
++    <string name="dahi_backup_select_items">选择要备份的内容</string>
++    <string name="dahi_restore_select_items">选择要还原的内容</string>
++    <string name="dahi_backup_pref">首选项</string>
++    <string name="dahi_backup_clipboard">剪贴板数据</string>
++    <string name="dahi_backup_collection">收藏夹数据</string>
++
++    <string name="dahi_backup_set_password">设置备份密码</string>
++    <string name="dahi_backup_enter_password">输入备份密码</string>
++    <string name="dahi_backup_password_hint">密码（用于加密，请务必牢记）</string>
++
++    <string name="dahi_backup_success">备份成功</string>
++    <string name="dahi_backup_failure">备份失败</string>
++    <string name="dahi_restore_success">还原成功</string>
++    <string name="dahi_restore_failure">还原失败</string>
++    <string name="dahi_restore_invalid_file">无效的备份文件（需为本版本导出的加密备份）</string>
++    <string name="dahi_restore_wrong_password">密码错误或文件已损坏</string>
++    <string name="dahi_restore_replace_warning">还原将覆盖当前所选数据，请谨慎操作。</string>
++    <string name="dahi_backup_empty_selection">未选择任何内容</string>
++</resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings_dahi_clipboard.xml b/app/src/main/res/values-zh-rCN/strings_dahi_clipboard.xml
+new file mode 100755
+index 0000000..f6d7b22
+--- /dev/null
++++ b/app/src/main/res/values-zh-rCN/strings_dahi_clipboard.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2015 - 2025 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<resources>
++    <!-- 剪切板 / 收藏夹 搜索框提示 -->
++    <string name="dahi_clipboard_search_hint">搜索</string>
++</resources>
+diff --git a/app/src/main/res/values-zh-rCN/strings_dahi_voice.xml b/app/src/main/res/values-zh-rCN/strings_dahi_voice.xml
+new file mode 100755
+index 0000000..fc35ea9
+--- /dev/null
++++ b/app/src/main/res/values-zh-rCN/strings_dahi_voice.xml
+@@ -0,0 +1,30 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++SPDX-FileCopyrightText: 2026 Rime community
++
++SPDX-License-Identifier: GPL-3.0-or-later
++
++说点啥（BiBi Keyboard）AIDL 语音输入联动相关字符串。
++-->
++
++<resources>
++    <!-- 常规设置页的三个开关 -->
++    <string name="asrkb_aidl_voice_input">说点啥AIDL语音输入</string>
++    <string name="asrkb_aidl_voice_input_summary">启用后可通过AIDL调用说点啥的语音识别；需在说点啥中开启“允许外部输入法联动(AIDL)”。</string>
++    <string name="asrkb_duck_media_on_record">录音时暂停其他媒体</string>
++    <string name="asrkb_duck_media_on_record_summary">使用说点啥语音输入录音时，请求其他应用暂时降低音量或暂停播放。实际效果取决于系统和播放应用。</string>
++    <string name="asrkb_aidl_voice_toolbar_button">工具栏麦克风按钮</string>
++    <string name="asrkb_aidl_voice_toolbar_button_summary">在工具栏显示麦克风按钮：点按开始录音，再次点按停止并上屏。开关切换后如未立即生效，请在键盘样式中切换到其他主题再切换回来以刷新。</string>
++
++    <!-- 运行期提示 -->
++    <string name="asrkb_err_connect_failed">无法连接说点啥服务</string>
++    <string name="asrkb_err_service_not_found">未找到说点啥服务（Pro/开源）</string>
++    <string name="asrkb_client_need_mic_permission">语音输入需要麦克风权限。</string>
++    <string name="asrkb_err_audio_record_failed">音频录制初始化失败，麦克风可能被其他应用占用。</string>
++    <string name="asrkb_err_busy">语音服务正忙，请稍后再试。</string>
++    <string name="asrkb_err_feature_disabled">请先在说点啥中开启“允许外部输入法联动(AIDL)”。</string>
++    <string name="asrkb_err_unsupported">当前供应商不支持外部推送 PCM。</string>
++    <string name="asrkb_err_start_failed_with_code">启动会话失败（错误码 %1$d）</string>
++    <string name="asrkb_err_service_error_with_code">语音服务错误（错误码 %1$d）</string>
++</resources>
+diff --git a/app/src/main/res/values-zh-rTW/strings.xml b/app/src/main/res/values-zh-rTW/strings.xml
+index 92bb111..c2600c9 100644
+--- a/app/src/main/res/values-zh-rTW/strings.xml
++++ b/app/src/main/res/values-zh-rTW/strings.xml
+@@ -7,8 +7,8 @@
+ 
+ <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+     <!-- 輸入法平臺名稱  -->
+-    <string name="app_name_release">同文輸入法</string>
+-    <string name="app_name_debug">同文輸入法（除錯模式）</string>
++    <string name="app_name_release">同文輸入法大海版</string>
++    <string name="app_name_debug">同文輸入法大海版（除錯版）</string>
+     <!-- Preference settings -->
+     <string name="qq_group_1">同文 QQ 羣 1</string>
+     <string name="qq_group_2">同文 QQ 羣 2</string>
+diff --git a/app/src/main/res/values-zh-rTW/strings_dahi_backup.xml b/app/src/main/res/values-zh-rTW/strings_dahi_backup.xml
+new file mode 100755
+index 0000000..bf9c7d8
+--- /dev/null
++++ b/app/src/main/res/values-zh-rTW/strings_dahi_backup.xml
+@@ -0,0 +1,34 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++SPDX-FileCopyrightText: 2026 Rime community
++
++SPDX-License-Identifier: GPL-3.0-or-later
++-->
++
++<resources>
++    <string name="dahi_backup_title">備份與還原</string>
++    <string name="dahi_backup">備份</string>
++    <string name="dahi_backup_summary">備份偏好設定、剪貼簿與收藏資料（加密儲存）</string>
++    <string name="dahi_restore">還原</string>
++    <string name="dahi_restore_summary">從加密備份檔還原資料</string>
++
++    <string name="dahi_backup_select_items">選擇要備份的內容</string>
++    <string name="dahi_restore_select_items">選擇要還原的內容</string>
++    <string name="dahi_backup_pref">偏好設定</string>
++    <string name="dahi_backup_clipboard">剪貼簿資料</string>
++    <string name="dahi_backup_collection">收藏資料</string>
++
++    <string name="dahi_backup_set_password">設定備份密碼</string>
++    <string name="dahi_backup_enter_password">輸入備份密碼</string>
++    <string name="dahi_backup_password_hint">密碼（用於加密，請務必牢記）</string>
++
++    <string name="dahi_backup_success">備份成功</string>
++    <string name="dahi_backup_failure">備份失敗</string>
++    <string name="dahi_restore_success">還原成功</string>
++    <string name="dahi_restore_failure">還原失敗</string>
++    <string name="dahi_restore_invalid_file">無效的備份檔案（需為本版本匯出的加密備份）</string>
++    <string name="dahi_restore_wrong_password">密碼錯誤或檔案已損毀</string>
++    <string name="dahi_restore_replace_warning">還原將覆蓋目前選取的資料，請謹慎操作。</string>
++    <string name="dahi_backup_empty_selection">未選擇任何內容</string>
++</resources>
+diff --git a/app/src/main/res/values-zh-rTW/strings_dahi_clipboard.xml b/app/src/main/res/values-zh-rTW/strings_dahi_clipboard.xml
+new file mode 100755
+index 0000000..31aeac0
+--- /dev/null
++++ b/app/src/main/res/values-zh-rTW/strings_dahi_clipboard.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2015 - 2025 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<resources>
++    <!-- 剪切板 / 收藏夾 搜尋框提示 -->
++    <string name="dahi_clipboard_search_hint">搜尋</string>
++</resources>
+diff --git a/app/src/main/res/values-zh-rTW/strings_dahi_voice.xml b/app/src/main/res/values-zh-rTW/strings_dahi_voice.xml
+new file mode 100755
+index 0000000..260aa0f
+--- /dev/null
++++ b/app/src/main/res/values-zh-rTW/strings_dahi_voice.xml
+@@ -0,0 +1,30 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++SPDX-FileCopyrightText: 2026 Rime community
++
++SPDX-License-Identifier: GPL-3.0-or-later
++
++說點啥（BiBi Keyboard）AIDL 語音輸入聯動相關字串。
++-->
++
++<resources>
++    <!-- 一般設定頁的三個開關 -->
++    <string name="asrkb_aidl_voice_input">說點啥AIDL語音輸入</string>
++    <string name="asrkb_aidl_voice_input_summary">啟用後可透過AIDL呼叫說點啥的語音識別；需在說點啥中開啟「允許外部輸入法聯動(AIDL)」。</string>
++    <string name="asrkb_duck_media_on_record">錄音時暫停其他媒體</string>
++    <string name="asrkb_duck_media_on_record_summary">使用說點啥語音輸入錄音時，要求其他應用程式暫時降低音量或暫停播放。實際效果取決於系統與播放應用程式。</string>
++    <string name="asrkb_aidl_voice_toolbar_button">工具列麥克風按鈕</string>
++    <string name="asrkb_aidl_voice_toolbar_button_summary">在工具列顯示麥克風按鈕：點按開始錄音，再次點按停止並上屏。開關切換後未立即生效，請在鍵盤樣式中切換到其他主題再切換回來以刷新。</string>
++
++    <!-- 執行期提示 -->
++    <string name="asrkb_err_connect_failed">無法連接說點啥服務</string>
++    <string name="asrkb_err_service_not_found">未找到說點啥服務（Pro/開源）</string>
++    <string name="asrkb_client_need_mic_permission">語音輸入需要麥克風權限。</string>
++    <string name="asrkb_err_audio_record_failed">音訊錄製初始化失敗，麥克風可能被其他應用程式占用。</string>
++    <string name="asrkb_err_busy">語音服務忙碌中，請稍後再試。</string>
++    <string name="asrkb_err_feature_disabled">請先在說點啥中開啟「允許外部輸入法聯動(AIDL)」。</string>
++    <string name="asrkb_err_unsupported">目前供應商不支援外部推送 PCM。</string>
++    <string name="asrkb_err_start_failed_with_code">啟動會話失敗（錯誤碼 %1$d）</string>
++    <string name="asrkb_err_service_error_with_code">語音服務錯誤（錯誤碼 %1$d）</string>
++</resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index ba369a6..7f00cbb 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -7,8 +7,8 @@
+ 
+ <resources xmlns:xliff="urn:oasis:names:en:xliff:document:1.2">
+     <!-- Input Method Platform Tittle  -->
+-    <string name="app_name_release">Trime</string>
+-    <string name="app_name_debug">Trime (Debug)</string>
++    <string name="app_name_release">同文输入法大海版</string>
++    <string name="app_name_debug">同文输入法大海版（调试）</string>
+     <!-- Preference settings -->
+     <string name="qq_group_1">Trime QQ group 1</string>
+     <string name="qq_group_2">Trime QQ group 2</string>
+diff --git a/app/src/main/res/values/strings_dahi_backup.xml b/app/src/main/res/values/strings_dahi_backup.xml
+new file mode 100755
+index 0000000..786b258
+--- /dev/null
++++ b/app/src/main/res/values/strings_dahi_backup.xml
+@@ -0,0 +1,36 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++SPDX-FileCopyrightText: 2026 Rime community
++
++SPDX-License-Identifier: GPL-3.0-or-later
++
++备份与还原（加密）相关字符串。默认 values 使用简体中文，保证各区域均显示中文标题。
++-->
++
++<resources>
++    <string name="dahi_backup_title">备份与还原</string>
++    <string name="dahi_backup">备份</string>
++    <string name="dahi_backup_summary">备份首选项、剪贴板和收藏夹数据（加密保存）</string>
++    <string name="dahi_restore">还原</string>
++    <string name="dahi_restore_summary">从加密备份文件还原数据</string>
++
++    <string name="dahi_backup_select_items">选择要备份的内容</string>
++    <string name="dahi_restore_select_items">选择要还原的内容</string>
++    <string name="dahi_backup_pref">首选项</string>
++    <string name="dahi_backup_clipboard">剪贴板数据</string>
++    <string name="dahi_backup_collection">收藏夹数据</string>
++
++    <string name="dahi_backup_set_password">设置备份密码</string>
++    <string name="dahi_backup_enter_password">输入备份密码</string>
++    <string name="dahi_backup_password_hint">密码（用于加密，请务必牢记）</string>
++
++    <string name="dahi_backup_success">备份成功</string>
++    <string name="dahi_backup_failure">备份失败</string>
++    <string name="dahi_restore_success">还原成功</string>
++    <string name="dahi_restore_failure">还原失败</string>
++    <string name="dahi_restore_invalid_file">无效的备份文件（需为本版本导出的加密备份）</string>
++    <string name="dahi_restore_wrong_password">密码错误或文件已损坏</string>
++    <string name="dahi_restore_replace_warning">还原将覆盖当前所选数据，请谨慎操作。</string>
++    <string name="dahi_backup_empty_selection">未选择任何内容</string>
++</resources>
+diff --git a/app/src/main/res/values/strings_dahi_clipboard.xml b/app/src/main/res/values/strings_dahi_clipboard.xml
+new file mode 100755
+index 0000000..151ef50
+--- /dev/null
++++ b/app/src/main/res/values/strings_dahi_clipboard.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2015 - 2025 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<resources>
++    <!-- 剪切板 / 收藏夹 搜索框提示 -->
++    <string name="dahi_clipboard_search_hint">Search</string>
++</resources>
+diff --git a/app/src/main/res/values/strings_dahi_voice.xml b/app/src/main/res/values/strings_dahi_voice.xml
+new file mode 100755
+index 0000000..fc35ea9
+--- /dev/null
++++ b/app/src/main/res/values/strings_dahi_voice.xml
+@@ -0,0 +1,30 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++SPDX-FileCopyrightText: 2026 Rime community
++
++SPDX-License-Identifier: GPL-3.0-or-later
++
++说点啥（BiBi Keyboard）AIDL 语音输入联动相关字符串。
++-->
++
++<resources>
++    <!-- 常规设置页的三个开关 -->
++    <string name="asrkb_aidl_voice_input">说点啥AIDL语音输入</string>
++    <string name="asrkb_aidl_voice_input_summary">启用后可通过AIDL调用说点啥的语音识别；需在说点啥中开启“允许外部输入法联动(AIDL)”。</string>
++    <string name="asrkb_duck_media_on_record">录音时暂停其他媒体</string>
++    <string name="asrkb_duck_media_on_record_summary">使用说点啥语音输入录音时，请求其他应用暂时降低音量或暂停播放。实际效果取决于系统和播放应用。</string>
++    <string name="asrkb_aidl_voice_toolbar_button">工具栏麦克风按钮</string>
++    <string name="asrkb_aidl_voice_toolbar_button_summary">在工具栏显示麦克风按钮：点按开始录音，再次点按停止并上屏。开关切换后如未立即生效，请在键盘样式中切换到其他主题再切换回来以刷新。</string>
++
++    <!-- 运行期提示 -->
++    <string name="asrkb_err_connect_failed">无法连接说点啥服务</string>
++    <string name="asrkb_err_service_not_found">未找到说点啥服务（Pro/开源）</string>
++    <string name="asrkb_client_need_mic_permission">语音输入需要麦克风权限。</string>
++    <string name="asrkb_err_audio_record_failed">音频录制初始化失败，麦克风可能被其他应用占用。</string>
++    <string name="asrkb_err_busy">语音服务正忙，请稍后再试。</string>
++    <string name="asrkb_err_feature_disabled">请先在说点啥中开启“允许外部输入法联动(AIDL)”。</string>
++    <string name="asrkb_err_unsupported">当前供应商不支持外部推送 PCM。</string>
++    <string name="asrkb_err_start_failed_with_code">启动会话失败（错误码 %1$d）</string>
++    <string name="asrkb_err_service_error_with_code">语音服务错误（错误码 %1$d）</string>
++</resources>
+diff --git a/build-dahi.sh b/build-dahi.sh
+new file mode 100755
+index 0000000..cfcd3b2
+--- /dev/null
++++ b/build-dahi.sh
+@@ -0,0 +1,51 @@
++#!/usr/bin/env bash
++# SPDX-FileCopyrightText: 2026 Rime community
++# SPDX-License-Identifier: GPL-3.0-or-later
++#
++# 一键编译「同文输入法大海版」（自用版，共存包名 com.osfans.trime.dahi）。
++#
++# 依赖：
++#   - JDK 25（与工程 build-logic 要求一致）
++#   - Android SDK（含 build-tools 36、platform 36）
++#   - Android NDK 28.0.13004108、CMake 3.31.6（可用 sdkmanager 安装）
++#   - git（需递归拉取子模块 librime / OpenCC 等）
++#
++# 用法：
++#   ./build-dahi.sh
++#   # 或只编译某个 ABI（更快）：
++#   BUILD_ABI=arm64-v8a ./build-dahi.sh
++set -euo pipefail
++
++export CI_NAME="${CI_NAME:-Dahi Build}"
++# 如 SDK 不在默认位置，请自行设置：
++# export ANDROID_HOME="$HOME/Android/Sdk"
++
++echo ">> 拉取原生依赖（librime / OpenCC / snappy / librime-lua ...，按 v3.3.12 锁定版本）"
++bash script/fetch-dahi-deps.sh
++
++# 可选：确保 NDK / CMake 版本与工程一致（sdkmanager 需在 PATH 中）
++# sdkmanager --install "ndk;28.0.13004108" "cmake;3.31.6"
++
++if [ ! -f keystore.properties ]; then
++  echo ">> 未发现 keystore.properties，自动生成自签名 keystore（仅本机自用）"
++  keytool -genkeypair -v -keystore dahi.keystore -alias dahi \
++    -keyalg RSA -keysize 2048 -validity 10000 \
++    -storepass dahipass -keypass dahipass \
++    -dname "CN=Dahi Trime, OU=Dahi, O=Dahi, L=City, ST=State, C=CN"
++  B64="$(base64 -w0 dahi.keystore 2>/dev/null || base64 dahi.keystore | tr -d '\n')"
++  {
++    echo "keyBase64=$B64"
++    echo "storePassword=dahipass"
++    echo "keyAlias=dahi"
++    echo "keyPassword=dahipass"
++  } > keystore.properties
++fi
++
++echo ">> 开始编译 :app:assembleRelease"
++make release
++
++echo ">> 完成。产物位于： app/build/outputs/apk/release/"
++ls -l app/build/outputs/apk/release/ || true
++echo
++echo "提示：现代手机请安装 arm64-v8a 版本；旧机型选 armeabi-v7a。"
++echo "     安装包名：com.osfans.trime.dahi（可与原版同文共存）。"
+diff --git a/script/fetch-dahi-deps.sh b/script/fetch-dahi-deps.sh
+new file mode 100755
+index 0000000..be284bf
+--- /dev/null
++++ b/script/fetch-dahi-deps.sh
+@@ -0,0 +1,45 @@
++#!/usr/bin/env bash
++# SPDX-FileCopyrightText: 2026 Rime community
++# SPDX-License-Identifier: GPL-3.0-or-later
++#
++# 按「同文输入法 v3.3.12」锁定的提交号拉取原生依赖。
++#
++# 背景：本目录在官方仓库里是 git 子模块（submodule）。若你把源码以普通文件方式
++# 上传到 GitHub（网页/GitHub Desktop），子模块的"锁定信息"会丢失，导致
++# `git submodule update` 拉不到任何内容、编译失败。
++# 本脚本用固定的 commit 号直接 git clone，因此**不依赖子模块元数据**，任何方式上传都能用。
++#
++# 用法（在工程根目录执行）：
++#   bash script/fetch-dahi-deps.sh
++set -euo pipefail
++
++fetch() { # <url> <sha> <path>
++  local url="$1" sha="$2" path="$3"
++  if [ -d "$path/.git" ]; then
++    echo ">> [已存在，跳过] $path"
++    return 0
++  fi
++  echo ">> 拉取 $path @ ${sha:0:10}"
++  rm -rf "$path"
++  mkdir -p "$(dirname "$path")"
++  git clone --quiet "$url" "$path"
++  git -C "$path" checkout --quiet --detach "$sha"
++  git -C "$path" submodule update --init --recursive --quiet
++}
++
++# ---- 原生库 (app/src/main/jni) ----
++fetch https://github.com/BYVoid/OpenCC.git           907bfcbbd3aae86ff04bc8eaca67c8af03108ddf app/src/main/jni/OpenCC
++fetch https://github.com/google/snappy.git           32ded457c0b1fe78ceb8397632c416568d6714a0 app/src/main/jni/snappy
++fetch https://github.com/rime/librime.git            33e78140250125871856cdc5b42ddc6a5fcd3cd4 app/src/main/jni/librime
++fetch https://github.com/hchunhui/librime-lua.git    68f9c364a2d25a04c7d4794981d7c796b05ab627 app/src/main/jni/librime-lua
++fetch https://github.com/hchunhui/librime-lua.git    9c53b362229766a97b83683b9541c46679118a90 app/src/main/jni/librime-lua-deps
++fetch https://github.com/lotem/librime-octagram.git  bd12863f45fbbd5c7db06d5ec8be8987b10253bf app/src/main/jni/librime-octagram
++fetch https://github.com/rime/librime-predict.git    67c2881914a0242fc14ec7d6877782771b75800c app/src/main/jni/librime-predict
++
++# ---- Rime 方案数据 (app/data/rime) ----
++fetch https://github.com/rime/rime-prelude.git       3803f09458072e03b9ed396692ce7e1d35c88c95 app/data/rime/prelude
++fetch https://github.com/rime/rime-luna-pinyin.git   46acf03142c12b5aeed7002675046bf7255eed35 app/data/rime/luna-pinyin
++fetch https://github.com/rime/rime-stroke.git        7c9874c6b2e0b94947653e9a7de6f99623ff27e4 app/data/rime/stroke
++fetch https://github.com/rime/rime-essay.git         0766c929ec3e578c2c80861e988decd3703a1c3d app/data/rime/essay
++
++echo ">> 原生依赖就绪。"
