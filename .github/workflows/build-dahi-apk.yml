@@ -1,0 +1,68 @@
+name: Build Dahi Trime APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    steps:
+      - name: 取出本仓库的补丁
+        uses: actions/checkout@v7
+        with:
+          path: kit
+
+      - name: 检出上游同文 v3.3.12（含子模块）
+        uses: actions/checkout@v7
+        with:
+          repository: osfans/trime
+          ref: v3.3.12
+          path: trime
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: 应用「大海版」补丁
+        run: |
+          cd trime
+          git apply --whitespace=nowarn "$GITHUB_WORKSPACE/kit/dahi.patch"
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install CMake
+        run: sdkmanager --install "cmake;3.31.6"
+
+      - name: 生成自签名 keystore
+        run: |
+          cd trime
+          keytool -genkeypair -v -keystore ../dahi.keystore -alias dahi \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass dahipass -keypass dahipass \
+            -dname "CN=Dahi Trime, OU=Dahi, O=Dahi, L=City, ST=State, C=CN"
+          B64=$(base64 -w0 ../dahi.keystore)
+          {
+            echo "keyBase64=$B64"
+            echo "storePassword=dahipass"
+            echo "keyAlias=dahi"
+            echo "keyPassword=dahipass"
+          } > keystore.properties
+
+      - name: 编译（make release）
+        run: make release
+        working-directory: trime
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dahi-trime-apk
+          path: trime/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
