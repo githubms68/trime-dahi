@@ -4,7 +4,7 @@
 
 # 同文输入法 · 大海版
 
-**基于同文输入法 (Trime) v3.3.12 的增强定制版**
+**基于同文输入法 (Trime) v3.3.12 的增强定制版【完全无联网权限】**
 剪切板更强 · 备份加密更安心 · 支持「说点啥」语音（支持离线语音模型、隐私无忧；在线语音模型、自由选定） · 与原版共存
 
 [![下载最新版](https://img.shields.io/github/v/release/githubms68/trime-dahi?label=下载最新版&color=2ea44f)](https://github.com/githubms68/trime-dahi/releases/latest)
