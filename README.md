@@ -73,6 +73,7 @@
 ## 🙏 致谢
 
 - [osfans/trime](https://github.com/osfans/trime) —— 上游同文输入法
+- [amzxyz/rime-wanxiang](https://github.com/amzxyz/rime-wanxiang)—— 「万象拼音」：把算法留在幕后，把纯粹还给指尖，用更优质的数据，接管你的候选。
 - [rime/librime](https://github.com/rime/librime) 及整个 Rime 生态
 - [lzlv312/CatTrime](https://github.com/lzlv312/CatTrime)
 - [osfans/trime-bibi-keyboard](https://github.com/BryceWG/trime-bibi-keyboard) 
