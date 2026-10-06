@@ -1,10 +1,22 @@
+# SPDX-FileCopyrightText: 2026 Rime community
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# 「同文输入法大海版」——编译工作流（支持固定签名，可覆盖更新）。
+# 用法：替换你仓库 .github/workflows/build-dahi-apk.yml。
+#   - 若仓库里配置了 Secrets（SIGNING_KEY/KEY_STORE_PASSWORD/ALIAS/KEY_PASSWORD），
+#     则使用固定签名密钥，发布的 APK 可以覆盖更新；
+#   - 若没配置，则自动临时生成密钥（仍能出 APK，但每次签名不同、无法覆盖更新）。
+
 name: Build Dahi Trime APK
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
+# 关键：设置 CI_NAME 后，app/build.gradle.kts 就不会执行 `git config user.name`
+# （CI 机器未配置 git 用户名时该命令返回非 0，会让构建失败）。
 env:
   CI_NAME: Dahi Build
 
@@ -30,6 +42,9 @@ jobs:
         run: |
           cd trime
           git apply --whitespace=nowarn "$GITHUB_WORKSPACE/kit/dahi.patch"
+          git config user.name "Dahi CI"
+          git config user.email "ci@dahi.local"
+          echo "补丁应用完成。"
 
       - name: Setup Java
         uses: actions/setup-java@v6
@@ -42,22 +57,36 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Install CMake
-        run: sdkmanager --install "cmake;3.31.6"
+        run: |
+          sdkmanager --install "cmake;3.31.6"
 
-      - name: 生成自签名 keystore
+      - name: 准备签名密钥
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: |
           cd trime
-          keytool -genkeypair -v -keystore ../dahi.keystore -alias dahi \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass dahipass -keypass dahipass \
-            -dname "CN=Dahi Trime, OU=Dahi, O=Dahi, L=City, ST=State, C=CN"
-          B64=$(base64 -w0 ../dahi.keystore)
-          {
-            echo "keyBase64=$B64"
-            echo "storePassword=dahipass"
-            echo "keyAlias=dahi"
-            echo "keyPassword=dahipass"
-          } > keystore.properties
+          if [ -n "${SIGNING_KEY:-}" ]; then
+            {
+              echo "keyBase64=$SIGNING_KEY"
+              echo "storePassword=${{ secrets.KEY_STORE_PASSWORD }}"
+              echo "keyAlias=${{ secrets.ALIAS }}"
+              echo "keyPassword=${{ secrets.KEY_PASSWORD }}"
+            } > keystore.properties
+            echo "✅ 使用仓库 Secrets 中的固定签名密钥（可覆盖更新）。"
+          else
+            keytool -genkeypair -v -keystore ../dahi.keystore -alias dahi \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass dahipass -keypass dahipass \
+              -dname "CN=Dahi Trime, OU=Dahi, O=Dahi, L=City, ST=State, C=CN"
+            B64=$(base64 -w0 ../dahi.keystore)
+            {
+              echo "keyBase64=$B64"
+              echo "storePassword=dahipass"
+              echo "keyAlias=dahi"
+              echo "keyPassword=dahipass"
+            } > keystore.properties
+            echo "⚠️ 未配置 Secrets，本次用临时密钥签名（不同次构建签名不同，无法覆盖更新）。"
+          fi
 
       - name: 编译（make release）
         run: make release
