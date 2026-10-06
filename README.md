@@ -44,7 +44,7 @@
 - 语音功能需自行安装「说点啥」，https://github.com/BryceWG/BiBi-Keyboard；https://bibi.brycewg.com/。
 
 ### 4. 与原版共存
-- 独立包名，原版同文 / CatTrime / BiBi 版都能一起安装，随时切换、互不覆盖。
+- 独立包名，与原版同文都能一起安装，随时切换、互不覆盖。
 
 ## 📸 截图
 
