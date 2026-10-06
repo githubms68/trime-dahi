@@ -1450,10 +1450,10 @@ index 0000000..2eb46c0
 +}
 diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchOverlay.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchOverlay.kt
 new file mode 100755
-index 0000000..103ccc2
+index 0000000..5fd49e9
 --- /dev/null
 +++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchOverlay.kt
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,242 @@
 +/*
 + * SPDX-FileCopyrightText: 2026 Rime community
 + *
@@ -1463,6 +1463,7 @@ index 0000000..103ccc2
 +package com.osfans.trime.ime.clipboard
 +
 +import android.content.Context
++import android.graphics.Color
 +import android.graphics.drawable.Drawable
 +import android.graphics.drawable.GradientDrawable
 +import android.text.TextUtils
@@ -1492,10 +1493,10 @@ index 0000000..103ccc2
 + * 剪贴板 / 收藏夹的搜索浮层。
 + *
 + * 背景：打开剪贴板时，同文会把「键盘窗口」整体替换掉（见 [BoardWindowManager.attachWindow]），
-+ * 因此剪贴板窗口里的 EditText 根本收不到键盘——键盘已不在屏幕上。
++ * 因此剪贴板窗口里的输入框根本收不到键盘——键盘已不在屏幕上。
 + *
 + * 本浮层在「键盘已重新显示」的前提下，贴在键盘上方：
-+ * 用户用同文键盘输入，提交的文本 / 退格经由 [ClipboardSearchBridge] 路由进来，
++ * 用户用同文键盘输入，纯文本 / 退格经由 [ClipboardSearchBridge] 路由进来，
 + * 实时过滤剪贴板与收藏夹条目，点条目即上屏。
 + */
 +class ClipboardSearchOverlay(
@@ -1510,8 +1511,26 @@ index 0000000..103ccc2
 +
 +    private val barSize = theme.generalStyle.candidateViewHeight + theme.generalStyle.commentHeight
 +
++    /** 顶栏高度：在主题栏高的基础上放大，并保证不小于 52dp，方便点击。 */
++    private val barHeight = maxOf(dp(52), (barSize * 1.6f * density).toInt())
++
 +    private val textColor = ColorManager.getColor("key_text_color")
 +    private val symbolColor = ColorManager.getColor("key_symbol_color")
++
++    private fun isDark(color: Int): Boolean =
++        0.299 * Color.red(color) + 0.587 * Color.green(color) + 0.114 * Color.blue(color) < 140
++
++    /** 主题背景无法解析时的兜底：按文字颜色自动选深/浅背景，保证对比度。 */
++    private val fallbackBackground: Int =
++        if (isDark(textColor)) 0xFF303030.toInt() else 0xFFF7F7F7.toInt()
++
++    /** 浮层背景：优先用主题按键背景（与条目一致），失败则用兜底色。 */
++    private val rootBackground: Drawable =
++        ColorManager.getDecorDrawable("key_back_color", "key_border_color", dp(1), dp(8).toFloat())
++            ?: GradientDrawable().apply {
++                setColor(fallbackBackground)
++                cornerRadius = dp(8).toFloat()
++            }
 +
 +    /** 浮层高度：约占屏幕 42%，保证不占满整屏、又能看到足够条目。 */
 +    val heightPx: Int = (ctx.resources.displayMetrics.heightPixels * 0.42f).toInt()
@@ -1523,12 +1542,13 @@ index 0000000..103ccc2
 +        TextView(ctx).apply {
 +            isSingleLine = true
 +            ellipsize = TextUtils.TruncateAt.END
-+            setTextSize(TypedValue.COMPLEX_UNIT_PX, theme.generalStyle.candidateTextSize)
++            // 用固定且足够大的字号（20sp），确保在浅色/深色主题下都清晰可见
++            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
 +            setTextColor(this@ClipboardSearchOverlay.textColor)
 +            setHintTextColor(symbolColor)
 +            hint = ctx.getString(R.string.dahi_clipboard_search_hint)
 +            gravity = Gravity.CENTER_VERTICAL
-+            setPadding(dp(8), 0, dp(8), 0)
++            setPadding(dp(10), 0, dp(10), 0)
 +        }
 +
 +    private val clearButton =
@@ -1536,7 +1556,7 @@ index 0000000..103ccc2
 +            setImageResource(R.drawable.ic_outline_cancel_24)
 +            setColorFilter(symbolColor)
 +            scaleType = ImageView.ScaleType.CENTER_INSIDE
-+            setPadding(dp(10), dp(10), dp(10), dp(10))
++            contentDescription = "clear"
 +            visibility = View.GONE
 +            setOnClickListener {
 +                query = ""
@@ -1549,7 +1569,7 @@ index 0000000..103ccc2
 +            setImageResource(R.drawable.ic_baseline_arrow_back_24)
 +            setColorFilter(symbolColor)
 +            scaleType = ImageView.ScaleType.CENTER_INSIDE
-+            setPadding(dp(10), dp(10), dp(10), dp(10))
++            contentDescription = "back"
 +            setOnClickListener { exit() }
 +        }
 +
@@ -1558,7 +1578,6 @@ index 0000000..103ccc2
 +            setImageResource(R.drawable.ic_baseline_search_24)
 +            setColorFilter(symbolColor)
 +            scaleType = ImageView.ScaleType.CENTER_INSIDE
-+            setPadding(dp(10), dp(10), dp(10), dp(10))
 +        }
 +
 +    private class ResultHolder(
@@ -1599,29 +1618,23 @@ index 0000000..103ccc2
 +            adapter = resultAdapter
 +            isVerticalScrollBarEnabled = true
 +            clipToPadding = false
-+            setPadding(dp(4), dp(4), dp(4), dp(4))
-+        }
-+
-+    private val background: Drawable =
-+        GradientDrawable().apply {
-+            setColor(runCatching { ColorManager.getColor("key_back_color") }.getOrDefault(0xFF2B2B2B.toInt()))
-+            cornerRadius = dp(8).toFloat()
++            setPadding(dp(6), dp(6), dp(6), dp(6))
 +        }
 +
 +    val root: View =
 +        LinearLayout(ctx).apply {
 +            orientation = LinearLayout.VERTICAL
-+            setBackground(background)
++            setBackground(rootBackground)
 +            addView(
 +                LinearLayout(ctx).apply {
 +                    orientation = LinearLayout.HORIZONTAL
 +                    gravity = Gravity.CENTER_VERTICAL
-+                    addView(searchIcon, LinearLayout.LayoutParams(dp(barSize), dp(barSize)))
-+                    addView(queryView, LinearLayout.LayoutParams(0, dp(barSize), 1f))
-+                    addView(clearButton, LinearLayout.LayoutParams(dp(barSize), dp(barSize)))
-+                    addView(backButton, LinearLayout.LayoutParams(dp(barSize), dp(barSize)))
++                    addView(searchIcon, LinearLayout.LayoutParams(dp(barSize), barHeight))
++                    addView(queryView, LinearLayout.LayoutParams(0, barHeight, 1f))
++                    addView(clearButton, LinearLayout.LayoutParams(barHeight, barHeight))
++                    addView(backButton, LinearLayout.LayoutParams(barHeight, barHeight))
 +                },
-+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(barSize)),
++                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barHeight),
 +            )
 +            addView(
 +                listView,
@@ -1789,7 +1802,7 @@ index df6e47d..2523b5e 100644
 +    }
  }
 diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
-index 3e396c2..72e2b97 100644
+index 3e396c2..5cfe0e0 100644
 --- a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
 @@ -9,9 +9,12 @@ import android.app.AlertDialog
@@ -1952,8 +1965,13 @@ index 3e396c2..72e2b97 100644
      private fun promptDeleteAll(action: suspend () -> Unit) {
          val dialog = AlertDialog.Builder(context)
              .setTitle(R.string.delete_all)
-@@ -215,12 +306,12 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+@@ -213,14 +304,17 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+     }
+ 
      override fun onAttached() {
++        // 打开剪贴板时清理可能残留的搜索浮层
++        service.hideBottomOverlay()
++        ClipboardSearchBridge.reset()
          clipboardLayout.viewPager.setCurrentItem(initialTab, false)
          clipboardBeansSubmitJob = service.lifecycleScope.launch {
 -            clipboardBeansPager.flow.collect {
@@ -1968,10 +1986,10 @@ index 3e396c2..72e2b97 100644
              }
          }
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-index 1edb256..6a8ccba 100644
+index 1edb256..e7b45b9 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-@@ -234,6 +234,32 @@ class InputView(
+@@ -234,6 +234,40 @@ class InputView(
          )
      }
  
@@ -2001,17 +2019,26 @@ index 1edb256..6a8ccba 100644
 +        bottomOverlay = null
 +    }
 +
++    /** 浮层在窗口中的顶部 Y 坐标；无浮层时返回 null。 */
++    fun bottomOverlayTopInWindow(): Int? {
++        val overlay = bottomOverlay ?: return null
++        val loc = IntArray(2)
++        overlay.getLocationInWindow(loc)
++        return loc[1]
++    }
++
      private fun updateKeyboardSize() {
          bottomPaddingSpace.updateLayoutParams {
              height = keyboardBottomPaddingPx
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
-index 6bba2fa..a8aca91 100644
+index 6bba2fa..45e0ddb 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
-@@ -47,8 +47,10 @@ import com.osfans.trime.data.prefs.PreferenceDelegateProvider
+@@ -47,8 +47,11 @@ import com.osfans.trime.data.prefs.PreferenceDelegateProvider
  import com.osfans.trime.data.theme.ColorManager
  import com.osfans.trime.data.theme.Theme
  import com.osfans.trime.data.theme.ThemeManager
++import com.osfans.trime.util.virtualKeyCharacterMap
 +import com.osfans.trime.ime.clipboard.ClipboardSearchBridge
  import com.osfans.trime.ime.composition.CandidatesView
  import com.osfans.trime.ime.keyboard.InputFeedbackManager
@@ -2019,7 +2046,7 @@ index 6bba2fa..a8aca91 100644
  import com.osfans.trime.receiver.RimeIntentReceiver
  import com.osfans.trime.util.any
  import com.osfans.trime.util.findSectionFrom
-@@ -205,7 +207,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -205,7 +208,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          when (it) {
              is RimeMessage.CommitTextMessage -> {
                  if (!it.data.text.isNullOrEmpty()) {
@@ -2031,7 +2058,24 @@ index 6bba2fa..a8aca91 100644
                  }
              }
              is RimeMessage.InlinePreeditMessage -> {
-@@ -218,6 +223,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -213,11 +219,26 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+             }
+             is RimeMessage.KeyMessage ->
+                 it.data.let msg@{
++                    if (ClipboardSearchBridge.active && !it.modifiers.release) {
++                        val kc = it.value.keyCode
++                        if (kc != KeyEvent.KEYCODE_UNKNOWN &&
++                            runCatching { virtualKeyCharacterMap.isPrintingKey(kc) }.getOrDefault(false)
++                        ) {
++                            val c = virtualKeyCharacterMap.get(kc, it.modifiers.metaState)
++                            if (c != 0) {
++                                ClipboardSearchBridge.acceptText(c.toChar().toString())
++                                return@msg
++                            }
++                        }
++                    }
+                     if (it.isVirtual) {
+                         when (it.value.value) {
                              RimeKeyMapping.RimeKey_Return -> handleReturnKey()
                              else -> {
                                  val keyCode = it.value.keyCode
@@ -2041,7 +2085,7 @@ index 6bba2fa..a8aca91 100644
                                  if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
                                      // recognized keyCode
                                      sendDownUpKeyEvent(
-@@ -243,6 +251,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -243,6 +264,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                          }
                      } else {
                          val keyCode = it.value.keyCode
@@ -2051,7 +2095,7 @@ index 6bba2fa..a8aca91 100644
                          if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
                              // recognized keyCode
                              val eventTime = SystemClock.uptimeMillis()
-@@ -301,6 +312,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -301,6 +325,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
      }
  
      override fun onDestroy() {
@@ -2059,7 +2103,7 @@ index 6bba2fa..a8aca91 100644
          InputFeedbackManager.destroy()
          inputView = null
          recreateInputViewPrefs.forEach {
-@@ -323,6 +335,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -323,6 +348,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                  return
              }
              if (!actionLabel.isNullOrEmpty() && actionId != EditorInfo.IME_ACTION_UNSPECIFIED) {
@@ -2067,7 +2111,7 @@ index 6bba2fa..a8aca91 100644
                  currentInputConnection.performEditorAction(actionId)
                  return
              }
-@@ -331,7 +344,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -331,7 +357,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                  EditorInfo.IME_ACTION_NONE,
                  -> sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
  
@@ -2079,7 +2123,7 @@ index 6bba2fa..a8aca91 100644
              }
          }
      }
-@@ -428,6 +444,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -428,6 +457,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          cursorUpdateIndex += 1
          handleCursorUpdate(newSelStart, newSelEnd, candidatesStart, candidatesEnd, cursorUpdateIndex)
          inputView?.updateSelection(newSelStart, newSelEnd)
@@ -2087,7 +2131,25 @@ index 6bba2fa..a8aca91 100644
      }
  
      private fun handleCursorUpdate(
-@@ -513,6 +530,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -460,6 +490,17 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+ 
+     override fun onComputeInsets(outInsets: Insets) {
+         if (inputDeviceManager.useVirtualKeyboard) {
++            val overlayTop = inputView?.bottomOverlayTopInWindow()
++            if (overlayTop != null && overlayTop > 0) {
++                // 搜索浮层显示时，把可触摸/内容上界抬到浮层顶部；
++                // 否则浮层区域不在输入法可触摸区内，点击会穿透到下层应用。
++                outInsets.apply {
++                    contentTopInsets = overlayTop
++                    visibleTopInsets = overlayTop
++                    touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
++                }
++                return
++            }
+             inputView?.keyboardView?.getLocationInWindow(inputViewLocation)
+             outInsets.apply {
+                 contentTopInsets = inputViewLocation[1]
+@@ -513,6 +554,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          attribute: EditorInfo,
          restarting: Boolean,
      ) {
@@ -2095,7 +2157,16 @@ index 6bba2fa..a8aca91 100644
          composingText = ""
          Timber.d("onStartInput: restarting=$restarting")
          val isNullType = attribute.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_NULL
-@@ -579,9 +597,27 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -544,6 +586,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+         restarting: Boolean,
+     ) {
+         Timber.d("onStartInputView: restarting=$restarting")
++        inputView?.hideBottomOverlay()
++        ClipboardSearchBridge.reset()
+         InputFeedbackManager.startInput()
+         postRimeJob {
+             updateRimeOption(this)
+@@ -579,10 +623,30 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          postRimeJob {
              clearComposition()
          }
@@ -2121,8 +2192,11 @@ index 6bba2fa..a8aca91 100644
 +    }
 +
      fun commitText(text: String) {
++        // 搜索浮层激活时，提交的文本一律进搜索框，而不是上屏到宿主应用
++        if (ClipboardSearchBridge.acceptText(text)) return
          val ic = currentInputConnection ?: return
  
+         // when composing text equals commit content, finish composing text as-is
 diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
 index 8723227..65f6808 100644
 --- a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
