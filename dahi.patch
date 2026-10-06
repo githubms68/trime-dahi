@@ -1016,7 +1016,7 @@ index d643496..ebfce73 100644
 +    suspend fun insertAll(beans: List<DatabaseBean>)
  }
 diff --git a/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt b/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
-index 4ae2758..7b00428 100644
+index 4ae2758..b17ec91 100644
 --- a/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
 +++ b/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
 @@ -95,12 +95,36 @@ class AppPrefs(
@@ -1056,6 +1056,29 @@ index 4ae2758..7b00428 100644
          val preferredVoiceInput = list(
              R.string.preferred_voice_input,
              PREFERRED_VOICE_INPUT,
+@@ -124,6 +148,7 @@ class AppPrefs(
+ 
+             const val USE_SOFT_CURSOR = "use_soft_cursor"
+             const val HIDE_INPUT_BAR = "hide_input_bar"
++            const val FLOATING_KEYBOARD = "floating_keyboard"
+             const val HIDE_KEY_SYMBOL = "hide_key_symbol"
+             const val HIDE_KEY_HINT = "hide_key_hint"
+ 
+@@ -181,6 +206,14 @@ class AppPrefs(
+         val useSoftCursor = switch(R.string.use_soft_cursor, USE_SOFT_CURSOR, true)
+ 
+         val hideInputBar = switch(R.string.hide_input_bar, HIDE_INPUT_BAR, false)
++
++        val floatingKeyboard =
++            switch(
++                R.string.dahi_floating_keyboard,
++                FLOATING_KEYBOARD,
++                false,
++                R.string.dahi_floating_keyboard_summary,
++            )
+         val hideKeySymbol = switch(R.string.hide_key_symbol, HIDE_KEY_SYMBOL, false)
+         val hideKeyHint = switch(R.string.hide_key_hint, HIDE_KEY_HINT, false)
+ 
 diff --git a/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt b/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
 index 4860737..f6ee70a 100644
 --- a/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
@@ -1986,13 +2009,338 @@ index 3e396c2..5cfe0e0 100644
              }
          }
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-index 1edb256..e7b45b9 100644
+index 1edb256..25824e4 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-@@ -234,6 +234,40 @@ class InputView(
-         )
-     }
+@@ -6,17 +6,31 @@
+ package com.osfans.trime.ime.core
  
+ import android.annotation.SuppressLint
++import android.content.Context
++import android.content.res.Configuration
++import android.graphics.Color
++import android.graphics.Outline
++import android.graphics.drawable.GradientDrawable
+ import android.os.Build
++import android.util.TypedValue
++import android.view.Gravity
++import android.view.MotionEvent
+ import android.view.View
++import android.view.ViewGroup
++import android.view.ViewOutlineProvider
+ import android.view.WindowInsets
+ import android.view.inputmethod.EditorInfo
+ import android.view.inputmethod.InlineSuggestionsResponse
+ import android.widget.ImageView
++import android.widget.LinearLayout
++import android.widget.TextView
+ import androidx.annotation.RequiresApi
++import androidx.constraintlayout.widget.ConstraintLayout
+ import androidx.core.content.ContextCompat
+ import androidx.core.view.ViewCompat
+ import androidx.core.view.updateLayoutParams
+ import androidx.lifecycle.lifecycleScope
++import com.osfans.trime.R
+ import com.osfans.trime.core.CompositionProto
+ import com.osfans.trime.core.RimeMessage
+ import com.osfans.trime.daemon.RimeSession
+@@ -139,6 +153,50 @@ class InputView(
+ 
+     val keyboardView: View
+ 
++    // ============================================================
++    //  悬浮键盘（dahi）：键盘可自由拖动、缩放，并作为可触摸区域浮动在应用之上
++    // ============================================================
++    private val floatingPref by lazy { AppPrefs.defaultInstance().keyboard.floatingKeyboard }
++    private val floatingPrefs = service.getSharedPreferences(FLOATING_PREFS_NAME, Context.MODE_PRIVATE)
++    private var floatingActive = false
++    private var floatingScale = DEFAULT_SCALE
++
++    private val floatingHandleTextColor: Int =
++        safeThemeColor(
++            "hilited_candidate_text_color",
++            if (isNightMode()) 0xFFFFFFFF.toInt() else 0xFF000000.toInt(),
++        )
++
++    private val floatingHandle: LinearLayout =
++        LinearLayout(context).apply {
++            id = View.generateViewId()
++            orientation = LinearLayout.HORIZONTAL
++            gravity = Gravity.CENTER_VERTICAL
++            visibility = View.GONE
++            setPadding(dp(12), 0, dp(6), 0)
++            background =
++                GradientDrawable().apply {
++                    val r = dp(FLOATING_CORNER_DP).toFloat()
++                    cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
++                    setColor(
++                        safeThemeColor(
++                            "hilited_candidate_back_color",
++                            if (isNightMode()) 0xFF3A3A3A.toInt() else 0xFFDDDDDD.toInt(),
++                        ),
++                    )
++                }
++        }
++
++    private val floatingOutline =
++        object : ViewOutlineProvider() {
++            override fun getOutline(
++                view: View,
++                outline: Outline,
++            ) {
++                outline.setRoundRect(0, 0, view.width, view.height, dp(FLOATING_CORNER_DP).toFloat())
++            }
++        }
++
+     init {
+         // MUST call before any operation
+         inputDepMgr.start()
+@@ -159,6 +217,13 @@ class InputView(
+                         centerInParent()
+                     },
+                 )
++                add(
++                    floatingHandle,
++                    lParams(matchParent, dp(FLOATING_HANDLE_HEIGHT_DP)) {
++                        topOfParent()
++                        centerHorizontally()
++                    },
++                )
+                 add(
+                     inputBar.view,
+                     lParams(matchParent, dp(inputBar.themedHeight)) {
+@@ -232,6 +297,266 @@ class InputView(
+                 centerInParent()
+             },
+         )
++
++        setupFloatingHandle()
++        post { applyFloatingState() }
++    }
++
++    override fun onSizeChanged(
++        w: Int,
++        h: Int,
++        oldw: Int,
++        oldh: Int,
++    ) {
++        super.onSizeChanged(w, h, oldw, oldh)
++        if (floatingActive) post { applyFloatingState() }
++    }
++
++    // ============================================================
++    //  悬浮键盘实现
++    // ============================================================
++
++    private fun isNightMode(): Boolean = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
++        Configuration.UI_MODE_NIGHT_YES
++
++    private fun safeThemeColor(
++        key: String,
++        fallback: Int,
++    ): Int = runCatching { ColorManager.getColor(key) }.getOrDefault(0).let {
++        if (it == 0 || it == Color.TRANSPARENT) fallback else it
++    }
++
++    private fun makeHandleButton(
++        labelRes: Int,
++        onClick: () -> Unit,
++    ): TextView = TextView(context).apply {
++        text = context.getString(labelRes)
++        setTextColor(floatingHandleTextColor)
++        setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
++        gravity = Gravity.CENTER
++        setPadding(dp(12), 0, dp(12), 0)
++        layoutParams =
++            LinearLayout.LayoutParams(
++                ViewGroup.LayoutParams.WRAP_CONTENT,
++                ViewGroup.LayoutParams.MATCH_PARENT,
++            )
++        isClickable = true
++        setOnClickListener { onClick() }
++    }
++
++    private fun setupFloatingHandle() {
++        val grip =
++            TextView(context).apply {
++                text = context.getString(R.string.dahi_floating_keyboard_handle)
++                setTextColor(floatingHandleTextColor)
++                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
++                gravity = Gravity.CENTER_VERTICAL
++                isSingleLine = true
++                ellipsize = android.text.TextUtils.TruncateAt.END
++                layoutParams =
++                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
++            }
++        attachFloatingDrag(grip)
++        floatingHandle.addView(grip)
++        floatingHandle.addView(
++            makeHandleButton(R.string.dahi_floating_keyboard_shrink) { changeFloatingScale(-SCALE_STEP) },
++        )
++        floatingHandle.addView(
++            makeHandleButton(R.string.dahi_floating_keyboard_grow) { changeFloatingScale(SCALE_STEP) },
++        )
++        floatingHandle.addView(
++            makeHandleButton(R.string.dahi_floating_keyboard_dock) { dockFloating() },
++        )
++    }
++
++    @SuppressLint("ClickableViewAccessibility")
++    private fun attachFloatingDrag(view: View) {
++        var downX = 0f
++        var downY = 0f
++        var startX = 0f
++        var startY = 0f
++        view.setOnTouchListener { _, event ->
++            when (event.actionMasked) {
++                MotionEvent.ACTION_DOWN -> {
++                    downX = event.rawX
++                    downY = event.rawY
++                    startX = keyboardView.translationX
++                    startY = keyboardView.translationY
++                    true
++                }
++                MotionEvent.ACTION_MOVE -> {
++                    keyboardView.translationX = startX + (event.rawX - downX)
++                    keyboardView.translationY = startY + (event.rawY - downY)
++                    clampFloating()
++                    applyFloatingVisuals()
++                    // 触发一次遍历，使框架重新计算可触摸区
++                    requestLayout()
++                    true
++                }
++                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
++                    floatingPrefs
++                        .edit()
++                        .putFloat(KEY_FLOATING_X, keyboardView.translationX)
++                        .putFloat(KEY_FLOATING_Y, keyboardView.translationY)
++                        .apply()
++                    true
++                }
++                else -> false
++            }
++        }
++    }
++
++    private fun changeFloatingScale(delta: Float) {
++        val current = floatingPrefs.getFloat(KEY_FLOATING_SCALE, DEFAULT_SCALE)
++        floatingScale = (current + delta).coerceIn(MIN_SCALE, 1f)
++        floatingPrefs.edit().putFloat(KEY_FLOATING_SCALE, floatingScale).apply()
++        clampFloating()
++        applyFloatingVisuals()
++        requestLayout()
++    }
++
++    private fun dockFloating() {
++        floatingPrefs.edit().putFloat(KEY_FLOATING_X, 0f).putFloat(KEY_FLOATING_Y, 0f).apply()
++        floatingPref.setValue(false)
++    }
++
++    /** 应用缩放/位移与预编辑跟随（不含可见性与约束切换）。 */
++    private fun applyFloatingVisuals() {
++        if (!floatingActive) {
++            keyboardView.translationX = 0f
++            keyboardView.translationY = 0f
++            keyboardView.scaleX = 1f
++            keyboardView.scaleY = 1f
++            preedit.ui.root.translationY = 0f
++            return
++        }
++        if (keyboardView.width > 0 && keyboardView.height > 0) {
++            keyboardView.pivotX = keyboardView.width / 2f
++            keyboardView.pivotY = keyboardView.height.toFloat()
++        }
++        keyboardView.scaleX = floatingScale
++        keyboardView.scaleY = floatingScale
++        preedit.ui.root.translationY =
++            keyboardView.translationY + keyboardView.height * (1f - floatingScale)
++    }
++
++    /** 把键盘限制在屏幕内：水平居中为基准，垂直底部为基准（只能向上拖）。 */
++    private fun clampFloating() {
++        if (!floatingActive) return
++        val pw = width.toFloat()
++        val ph = height.toFloat()
++        val kw = keyboardView.width.toFloat()
++        val kh = keyboardView.height.toFloat()
++        if (pw <= 0f || ph <= 0f || kw <= 0f || kh <= 0f) return
++        val maxTx = (kw / 2f) * (1f - floatingScale)
++        keyboardView.translationX = keyboardView.translationX.coerceIn(-maxTx, maxTx)
++        val minTy = (kh * floatingScale - ph).coerceAtMost(0f)
++        keyboardView.translationY = keyboardView.translationY.coerceIn(minTy, 0f)
++    }
++
++    private fun applyFloatingState() {
++        val enabled = runCatching { floatingPref.getValue() }.getOrDefault(false)
++        floatingActive = enabled
++        if (enabled) {
++            floatingScale =
++                floatingPrefs.getFloat(KEY_FLOATING_SCALE, DEFAULT_SCALE).coerceIn(MIN_SCALE, 1f)
++            keyboardView.translationX = floatingPrefs.getFloat(KEY_FLOATING_X, 0f)
++            keyboardView.translationY = floatingPrefs.getFloat(KEY_FLOATING_Y, 0f)
++            floatingHandle.visibility = View.VISIBLE
++            inputBar.view.updateLayoutParams<LayoutParams> {
++                topToTop = ConstraintLayout.LayoutParams.UNSET
++                topToBottom = floatingHandle.id
++            }
++            keyboardView.elevation = dp(FLOATING_ELEVATION_DP).toFloat()
++            keyboardView.outlineProvider = floatingOutline
++            keyboardView.clipToOutline = true
++            keyboardView.background =
++                GradientDrawable().apply {
++                    cornerRadius = dp(FLOATING_CORNER_DP).toFloat()
++                    setColor(
++                        safeThemeColor(
++                            "keyboard_back_color",
++                            if (isNightMode()) 0xFF202020.toInt() else 0xFFFFFFFF.toInt(),
++                        ),
++                    )
++                }
++        } else {
++            floatingHandle.visibility = View.GONE
++            inputBar.view.updateLayoutParams<LayoutParams> {
++                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
++                topToBottom = ConstraintLayout.LayoutParams.UNSET
++            }
++            keyboardView.elevation = 0f
++            keyboardView.clipToOutline = false
++            keyboardView.outlineProvider = null
++            keyboardView.background = null
++        }
++        clampFloating()
++        applyFloatingVisuals()
++        requestLayout()
++    }
++
++    /**
++     * 悬浮键盘在窗口坐标系中的矩形（含搜索浮层），供 onComputeInsets 限定可触摸区。
++     * 返回 null 表示当前不是悬浮状态。
++     */
++    fun floatingRectInWindow(): IntArray? {
++        if (!floatingActive) return null
++        val pw = width.toFloat()
++        val ph = height.toFloat()
++        val kw = keyboardView.width.toFloat()
++        val kh = keyboardView.height.toFloat()
++        if (pw <= 0f || ph <= 0f || kw <= 0f || kh <= 0f) return null
++        val halfWidth = kw / 2f
++        var left = keyboardView.translationX + halfWidth * (1f - floatingScale)
++        var top = keyboardView.translationY + ph - kh * floatingScale
++        var right = left + kw * floatingScale
++        var bottom = top + kh * floatingScale
++        bottomOverlay?.let { overlay ->
++            if (overlay.width > 0 && overlay.height > 0) {
++                val loc = IntArray(2)
++                overlay.getLocationInWindow(loc)
++                left = minOf(left, loc[0].toFloat())
++                top = minOf(top, loc[1].toFloat())
++                right = maxOf(right, (loc[0] + overlay.width).toFloat())
++                bottom = maxOf(bottom, (loc[1] + overlay.height).toFloat())
++            }
++        }
++        return intArrayOf(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
++    }
++
 +    private var bottomOverlay: View? = null
 +
 +    /**
@@ -2025,20 +2373,35 @@ index 1edb256..e7b45b9 100644
 +        val loc = IntArray(2)
 +        overlay.getLocationInWindow(loc)
 +        return loc[1]
-+    }
-+
+     }
+ 
      private fun updateKeyboardSize() {
-         bottomPaddingSpace.updateLayoutParams {
-             height = keyboardBottomPaddingPx
+@@ -345,4 +670,17 @@ class InputView(
+         inputDepMgr.stop()
+         super.onDetachedFromWindow()
+     }
++
++    companion object {
++        private const val FLOATING_PREFS_NAME = "dahi_floating_keyboard"
++        private const val KEY_FLOATING_X = "x"
++        private const val KEY_FLOATING_Y = "y"
++        private const val KEY_FLOATING_SCALE = "scale"
++        private const val DEFAULT_SCALE = 0.9f
++        private const val MIN_SCALE = 0.5f
++        private const val SCALE_STEP = 0.1f
++        private const val FLOATING_HANDLE_HEIGHT_DP = 30
++        private const val FLOATING_CORNER_DP = 14
++        private const val FLOATING_ELEVATION_DP = 10
++    }
+ }
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
-index 6bba2fa..45e0ddb 100644
+index 6bba2fa..fd226ed 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
-@@ -47,8 +47,11 @@ import com.osfans.trime.data.prefs.PreferenceDelegateProvider
+@@ -47,14 +47,17 @@ import com.osfans.trime.data.prefs.PreferenceDelegateProvider
  import com.osfans.trime.data.theme.ColorManager
  import com.osfans.trime.data.theme.Theme
  import com.osfans.trime.data.theme.ThemeManager
-+import com.osfans.trime.util.virtualKeyCharacterMap
 +import com.osfans.trime.ime.clipboard.ClipboardSearchBridge
  import com.osfans.trime.ime.composition.CandidatesView
  import com.osfans.trime.ime.keyboard.InputFeedbackManager
@@ -2046,7 +2409,22 @@ index 6bba2fa..45e0ddb 100644
  import com.osfans.trime.receiver.RimeIntentReceiver
  import com.osfans.trime.util.any
  import com.osfans.trime.util.findSectionFrom
-@@ -205,7 +208,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+ import com.osfans.trime.util.forceShowSelf
+ import com.osfans.trime.util.monitorCursorAnchor
+ import com.osfans.trime.util.styledFloat
++import com.osfans.trime.util.virtualKeyCharacterMap
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.CoroutineStart
+ import kotlinx.coroutines.Job
+@@ -101,6 +104,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+         prefs.keyboard.hideKeySymbol,
+         prefs.keyboard.hideKeyHint,
+         prefs.keyboard.hideInputBar,
++        prefs.keyboard.floatingKeyboard,
+         prefs.advanced.ignoreSystemGestureInsets,
+     )
+ 
+@@ -205,7 +209,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          when (it) {
              is RimeMessage.CommitTextMessage -> {
                  if (!it.data.text.isNullOrEmpty()) {
@@ -2058,7 +2436,7 @@ index 6bba2fa..45e0ddb 100644
                  }
              }
              is RimeMessage.InlinePreeditMessage -> {
-@@ -213,11 +219,26 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -213,11 +220,26 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
              }
              is RimeMessage.KeyMessage ->
                  it.data.let msg@{
@@ -2085,7 +2463,7 @@ index 6bba2fa..45e0ddb 100644
                                  if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
                                      // recognized keyCode
                                      sendDownUpKeyEvent(
-@@ -243,6 +264,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -243,6 +265,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                          }
                      } else {
                          val keyCode = it.value.keyCode
@@ -2095,7 +2473,7 @@ index 6bba2fa..45e0ddb 100644
                          if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
                              // recognized keyCode
                              val eventTime = SystemClock.uptimeMillis()
-@@ -301,6 +325,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -301,6 +326,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
      }
  
      override fun onDestroy() {
@@ -2103,7 +2481,7 @@ index 6bba2fa..45e0ddb 100644
          InputFeedbackManager.destroy()
          inputView = null
          recreateInputViewPrefs.forEach {
-@@ -323,6 +348,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -323,6 +349,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                  return
              }
              if (!actionLabel.isNullOrEmpty() && actionId != EditorInfo.IME_ACTION_UNSPECIFIED) {
@@ -2111,7 +2489,7 @@ index 6bba2fa..45e0ddb 100644
                  currentInputConnection.performEditorAction(actionId)
                  return
              }
-@@ -331,7 +357,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -331,7 +358,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                  EditorInfo.IME_ACTION_NONE,
                  -> sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
  
@@ -2123,7 +2501,7 @@ index 6bba2fa..45e0ddb 100644
              }
          }
      }
-@@ -428,6 +457,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -428,6 +458,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          cursorUpdateIndex += 1
          handleCursorUpdate(newSelStart, newSelEnd, candidatesStart, candidatesEnd, cursorUpdateIndex)
          inputView?.updateSelection(newSelStart, newSelEnd)
@@ -2131,10 +2509,38 @@ index 6bba2fa..45e0ddb 100644
      }
  
      private fun handleCursorUpdate(
-@@ -460,6 +490,17 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -460,6 +491,45 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
  
      override fun onComputeInsets(outInsets: Insets) {
          if (inputDeviceManager.useVirtualKeyboard) {
++            // 悬浮键盘：应用窗口保持全屏（内容上界置 0），可触摸区精确限定为
++            // 键盘（含搜索浮层）矩形，其余区域的点击穿透到下层应用。
++            val floatingRect = inputView?.floatingRectInWindow()
++            if (floatingRect != null) {
++                // 候选视图（如“始终显示候选窗口”模式）若可见，一并纳入可触摸区
++                candidatesView
++                    ?.takeIf { it.visibility == View.VISIBLE }
++                    ?.let { cv ->
++                        val cvLoc = IntArray(2)
++                        cv.getLocationInWindow(cvLoc)
++                        floatingRect[0] = minOf(floatingRect[0], cvLoc[0])
++                        floatingRect[1] = minOf(floatingRect[1], cvLoc[1])
++                        floatingRect[2] = maxOf(floatingRect[2], cvLoc[0] + cv.width)
++                        floatingRect[3] = maxOf(floatingRect[3], cvLoc[1] + cv.height)
++                    }
++                outInsets.apply {
++                    contentTopInsets = 0
++                    visibleTopInsets = 0
++                    touchableInsets = Insets.TOUCHABLE_INSETS_REGION
++                    touchableRegion.set(
++                        floatingRect[0],
++                        floatingRect[1],
++                        floatingRect[2],
++                        floatingRect[3],
++                    )
++                }
++                return
++            }
 +            val overlayTop = inputView?.bottomOverlayTopInWindow()
 +            if (overlayTop != null && overlayTop > 0) {
 +                // 搜索浮层显示时，把可触摸/内容上界抬到浮层顶部；
@@ -2149,7 +2555,7 @@ index 6bba2fa..45e0ddb 100644
              inputView?.keyboardView?.getLocationInWindow(inputViewLocation)
              outInsets.apply {
                  contentTopInsets = inputViewLocation[1]
-@@ -513,6 +554,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -513,6 +583,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          attribute: EditorInfo,
          restarting: Boolean,
      ) {
@@ -2157,7 +2563,7 @@ index 6bba2fa..45e0ddb 100644
          composingText = ""
          Timber.d("onStartInput: restarting=$restarting")
          val isNullType = attribute.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_NULL
-@@ -544,6 +586,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -544,6 +615,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          restarting: Boolean,
      ) {
          Timber.d("onStartInputView: restarting=$restarting")
@@ -2166,7 +2572,7 @@ index 6bba2fa..45e0ddb 100644
          InputFeedbackManager.startInput()
          postRimeJob {
              updateRimeOption(this)
-@@ -579,10 +623,30 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -579,10 +652,30 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          postRimeJob {
              clearComposition()
          }
@@ -2197,6 +2603,21 @@ index 6bba2fa..45e0ddb 100644
          val ic = currentInputConnection ?: return
  
          // when composing text equals commit content, finish composing text as-is
+diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
+index 421b007..816fc60 100644
+--- a/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
++++ b/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
+@@ -191,6 +191,10 @@ class CommonKeyboardActionListener {
+                     "select_candidate" -> handleSelectCandidate(arg)
+                     "switch_hide_key_symbol" -> switchHideKeySymbol()
+                     "switch_hide_key_hint" -> switchHideKeyHint()
++                    "floating_keyboard" -> {
++                        val p = AppPrefs.defaultInstance().keyboard.floatingKeyboard
++                        p.setValue(!p.getValue())
++                    }
+                     else -> handleIntentAction(action.command, arg)
+                 }
+             }
 diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
 index 8723227..65f6808 100644
 --- a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
@@ -4513,6 +4934,28 @@ index 0000000..151ef50
 +<resources>
 +    <!-- 剪切板 / 收藏夹 搜索框提示 -->
 +    <string name="dahi_clipboard_search_hint">Search</string>
++</resources>
+diff --git a/app/src/main/res/values/strings_dahi_floating.xml b/app/src/main/res/values/strings_dahi_floating.xml
+new file mode 100755
+index 0000000..d6baeed
+--- /dev/null
++++ b/app/src/main/res/values/strings_dahi_floating.xml
+@@ -0,0 +1,16 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2015 - 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<resources>
++    <!-- 悬浮键盘 -->
++    <string name="dahi_floating_keyboard">悬浮键盘</string>
++    <string name="dahi_floating_keyboard_summary">键盘可自由拖动、缩放；关闭即恢复停靠</string>
++    <string name="dahi_floating_keyboard_handle">拖动此处移动键盘 · 悬浮键盘</string>
++    <string name="dahi_floating_keyboard_shrink">－</string>
++    <string name="dahi_floating_keyboard_grow">＋</string>
++    <string name="dahi_floating_keyboard_dock">停靠</string>
 +</resources>
 diff --git a/app/src/main/res/values/strings_dahi_voice.xml b/app/src/main/res/values/strings_dahi_voice.xml
 new file mode 100755
