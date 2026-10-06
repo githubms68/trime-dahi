@@ -2120,7 +2120,7 @@ index 0000000..ea9aa75
 +    }
 +}
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-index 1edb256..cf11f2f 100644
+index 1edb256..d03eac2 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
 @@ -6,21 +6,37 @@
@@ -2168,7 +2168,7 @@ index 1edb256..cf11f2f 100644
 +    // ============================================================
 +    //  悬浮键盘（dahi）：键盘可自由拖动、缩放，并作为可触摸区域浮动在应用之上
 +    // ============================================================
-+    private val keyboardTransparency by AppPrefs.defaultInstance().keyboard.keyboardTransparency
++    private val keyboardTransparencyPref = AppPrefs.defaultInstance().keyboard.keyboardTransparency
 +    private var floatingActive = false
 +    private var floatingScale = FloatingKeyboard.DEFAULT_SCALE
 +
@@ -2359,7 +2359,7 @@ index 1edb256..cf11f2f 100644
 +
 +    /** 键盘透明度（关键字：不影响既有默认值，默认 100%） */
 +    private fun applyKeyboardAlpha() {
-+        keyboardView.alpha = (keyboardTransparency.getValue() / 100f).coerceIn(0.1f, 1f)
++        keyboardView.alpha = (keyboardTransparencyPref.getValue() / 100f).coerceIn(0.1f, 1f)
 +    }
 +
 +    /** 应用缩放/位移与预编辑跟随（不含可见性与约束切换）。 */
@@ -2509,12 +2509,12 @@ index 1edb256..cf11f2f 100644
 +    override fun onAttachedToWindow() {
 +        super.onAttachedToWindow()
 +        FloatingKeyboard.registerListener(floatingStateListener)
-+        keyboardTransparency.registerOnChangeListener(transparencyListener)
++        keyboardTransparencyPref.registerOnChangeListener(transparencyListener)
 +    }
 +
      override fun onDetachedFromWindow() {
 +        FloatingKeyboard.unregisterListener(floatingStateListener)
-+        keyboardTransparency.unregisterOnChangeListener(transparencyListener)
++        keyboardTransparencyPref.unregisterOnChangeListener(transparencyListener)
          ViewCompat.setOnApplyWindowInsetsListener(this, null)
          // cancel the notification job and clear all broadcast receivers,
          // implies that InputView should not be attached again after detached.
