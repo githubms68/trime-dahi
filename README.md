@@ -1,5 +1,4 @@
-<img width="1280" height="640" alt="social-preview-1280x640" src="https://github.com/user-attachments/assets/3f2ff7d0-da6b-401f-ab4e-ab3ceac61154" />
-
+<img width="2185" height="1080" alt="2微信图片_20261006202813" src="https://github.com/user-attachments/assets/281996d6-f763-4c6f-99b7-80ab970bbd62" />
 <div align="center">
 
 # 同文输入法 · 大海版
@@ -78,6 +77,7 @@
 - [lzlv312/CatTrime](https://github.com/lzlv312/CatTrime)
 - [osfans/trime-bibi-keyboard](https://github.com/BryceWG/trime-bibi-keyboard) 
 - 「说点啥」输入法提供的语音联动协议
+
 
 ## 📄 许可
 
