@@ -70,7 +70,7 @@
 - **提示来源/签名异常？** 个人自签名、非应用商店分发，属正常现象。
 - **以后怎么更新？** 到 Releases 下载新版覆盖安装。**更新前建议先用本版自带的加密备份**。
 
-## 🙏 致谢
+## 🙏 致敬
 
 - [osfans/trime](https://github.com/osfans/trime) —— 上游同文输入法
 - [amzxyz/rime-wanxiang](https://github.com/amzxyz/rime-wanxiang)—— 「万象拼音」：把算法留在幕后，把纯粹还给指尖，用更优质的数据，接管你的候选。
