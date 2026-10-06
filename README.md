@@ -5,7 +5,7 @@
 # 同文输入法 · 大海版
 
 **基于同文输入法 (Trime) v3.3.12 的增强定制版**
-剪切板更强 · 备份加密更安心 · 支持「说点啥」语音 · 与原版共存
+剪切板更强 · 备份加密更安心 · 支持「说点啥」语音（支持离线语音模型、隐私无忧；在线语音模型、自由选定） · 与原版共存
 
 [![下载最新版](https://img.shields.io/github/v/release/githubms68/trime-dahi?label=下载最新版&color=2ea44f)](https://github.com/githubms68/trime-dahi/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](./LICENSE)
@@ -38,9 +38,10 @@
 - 一键备份 **首选项 / 剪切板 / 收藏夹**；换机、刷机、重装后一键还原。
 - 🔐 **全程加密**：备份文件采用 **AES-256-GCM** 认证加密，密码经 **PBKDF2-HMAC-SHA256（20 万次迭代）** 派生。**绝不明文落盘**，文件被他人拿到也读不出内容。
 
-### 3. 支持「说点啥」语音输入
+### 3. 支持「说点啥」语音输入（支持离线语音模型、隐私无忧；在线语音模型、自由选定）
 - 「常规」设置新增 3 个开关：**说点啥 AIDL 语音输入 / 录音时暂停其他媒体 / 工具栏麦克风按钮**。
 - **长按空格键**或点**工具栏麦克风**即可语音输入，识别结果自动上屏。
+- 语音功能需自行安装「说点啥」，https://github.com/BryceWG/BiBi-Keyboard；https://bibi.brycewg.com/。
 
 ### 4. 与原版共存
 - 独立包名，原版同文 / CatTrime / BiBi 版都能一起安装，随时切换、互不覆盖。
@@ -48,9 +49,9 @@
 ## 📸 截图
 
 <!-- 把截图放进 docs/ 目录，替换下面路径即可 -->
-| 剪切板搜索 & 拖动排序 | 加密备份与还原 | 语音输入开关 |
-|:---:|:---:|:---:|
-| ![clipboard](docs/screenshot-1.jpg) | ![backup](docs/screenshot-2.jpg) | ![voice](docs/screenshot-3.jpg) |
+| 剪切板\收藏夹搜索 & 拖动排序 | 收藏夹增加置顶 | 加密备份与还原 | 语音输入开关 |
+|:---:|:---:|:---:|:---:|
+| ![clipboard](docs/screenshot-1.jpg) | ![clipboard](docs/screenshot-2.jpg) | ![backup](docs/screenshot-3.jpg) | ![voice](docs/screenshot-4.jpg) |
 
 ## 📥 下载与安装
 
@@ -68,20 +69,12 @@
 - **提示来源/签名异常？** 个人自签名、非应用商店分发，属正常现象。
 - **以后怎么更新？** 到 Releases 下载新版覆盖安装。**更新前建议先用本版自带的加密备份**。
 
-## 🔧 自行编译（可选）
-
-不想用现成 APK、想自己构建？本仓库支持一键 GitHub Actions 编译（免费、无需本地环境）：
-
-1. 新建仓库，放入 `dahi.patch` 与 `.github/workflows/build-dahi-apk.yml`；
-2. Actions → **Build Dahi Trime APK** → Run workflow；
-3. 完成后在 Artifacts 下载。
-
-详见仓库内 `github-actions-kit/` 与 `README-DAHI.md`。
-
 ## 🙏 致谢
 
 - [osfans/trime](https://github.com/osfans/trime) —— 上游同文输入法
 - [rime/librime](https://github.com/rime/librime) 及整个 Rime 生态
+- [lzlv312/CatTrime](https://github.com/lzlv312/CatTrime)
+- [osfans/trime-bibi-keyboard](https://github.com/BryceWG/trime-bibi-keyboard) 
 - 「说点啥」输入法提供的语音联动协议
 
 ## 📄 许可
