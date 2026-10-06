@@ -1016,7 +1016,7 @@ index d643496..ebfce73 100644
 +    suspend fun insertAll(beans: List<DatabaseBean>)
  }
 diff --git a/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt b/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
-index 4ae2758..b17ec91 100644
+index 4ae2758..294b919 100644
 --- a/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
 +++ b/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
 @@ -95,12 +95,36 @@ class AppPrefs(
@@ -1056,34 +1056,53 @@ index 4ae2758..b17ec91 100644
          val preferredVoiceInput = list(
              R.string.preferred_voice_input,
              PREFERRED_VOICE_INPUT,
-@@ -124,6 +148,7 @@ class AppPrefs(
+@@ -124,6 +148,8 @@ class AppPrefs(
  
              const val USE_SOFT_CURSOR = "use_soft_cursor"
              const val HIDE_INPUT_BAR = "hide_input_bar"
-+            const val FLOATING_KEYBOARD = "floating_keyboard"
++            const val FLOATING_KEYBOARD_TOOLBAR_BUTTON = "floating_keyboard_toolbar_button"
++            const val KEYBOARD_TRANSPARENCY = "keyboard_transparency"
              const val HIDE_KEY_SYMBOL = "hide_key_symbol"
              const val HIDE_KEY_HINT = "hide_key_hint"
  
-@@ -181,6 +206,14 @@ class AppPrefs(
+@@ -181,6 +207,24 @@ class AppPrefs(
          val useSoftCursor = switch(R.string.use_soft_cursor, USE_SOFT_CURSOR, true)
  
          val hideInputBar = switch(R.string.hide_input_bar, HIDE_INPUT_BAR, false)
 +
-+        val floatingKeyboard =
++        val floatingKeyboardToolbarButton =
 +            switch(
-+                R.string.dahi_floating_keyboard,
-+                FLOATING_KEYBOARD,
-+                false,
++                R.string.dahi_floating_keyboard_toolbar_button,
++                FLOATING_KEYBOARD_TOOLBAR_BUTTON,
++                true,
 +                R.string.dahi_floating_keyboard_summary,
++            )
++
++        val keyboardTransparency =
++            int(
++                R.string.dahi_keyboard_transparency,
++                KEYBOARD_TRANSPARENCY,
++                100,
++                10,
++                100,
++                "%",
 +            )
          val hideKeySymbol = switch(R.string.hide_key_symbol, HIDE_KEY_SYMBOL, false)
          val hideKeyHint = switch(R.string.hide_key_hint, HIDE_KEY_HINT, false)
  
 diff --git a/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt b/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
-index 4860737..f6ee70a 100644
+index 4860737..c72265c 100644
 --- a/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
-@@ -43,6 +43,8 @@ import com.osfans.trime.ime.keyboard.KeyboardWindow
+@@ -35,6 +35,7 @@ import com.osfans.trime.ime.bar.ui.TabUi
+ import com.osfans.trime.ime.broadcast.InputBroadcastReceiver
+ import com.osfans.trime.ime.candidates.compact.CompactCandidateDelegate
+ import com.osfans.trime.ime.candidates.unrolled.window.FlexboxUnrolledCandidateWindow
++import com.osfans.trime.ime.core.FloatingKeyboard
+ import com.osfans.trime.ime.core.TrimeInputMethodService
+ import com.osfans.trime.ime.dependency.InputDependencyManager
+ import com.osfans.trime.ime.keyboard.CommonKeyboardActionListener
+@@ -43,6 +44,8 @@ import com.osfans.trime.ime.keyboard.KeyboardWindow
  import com.osfans.trime.ime.switches.SwitchOptionWindow
  import com.osfans.trime.ime.window.BoardWindow
  import com.osfans.trime.ime.window.BoardWindowManager
@@ -1092,7 +1111,7 @@ index 4860737..f6ee70a 100644
  import com.osfans.trime.ui.main.ClipEditActivity
  import com.osfans.trime.util.AppUtils
  import kotlinx.coroutines.Job
-@@ -68,6 +70,7 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -68,6 +71,7 @@ class InputBarDelegate : InputBroadcastReceiver {
      private val commonKeyboardActionListener: CommonKeyboardActionListener by di.instance()
      private val candidate: CompactCandidateDelegate by di.instance()
      private val rime: RimeSession by di.instance()
@@ -1100,7 +1119,7 @@ index 4860737..f6ee70a 100644
  
      val themedHeight = theme.generalStyle.run { candidateViewHeight + commentHeight }
  
-@@ -79,6 +82,25 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -79,6 +83,27 @@ class InputBarDelegate : InputBroadcastReceiver {
  
      private val clipboardSuggestionTimeout by prefs.clipboard.clipboardSuggestionTimeout
  
@@ -1121,15 +1140,21 @@ index 4860737..f6ee70a 100644
 +
 +    private val bibiToolbarMicButton by prefs.general.bibiToolbarMicButton
 +
++    private val floatingKeyboardToolbarButton by prefs.keyboard.floatingKeyboardToolbarButton
++
 +    private var asrkbHoldingChangedListener: ((Boolean) -> Unit)? = null
 +
      private var clipboardTimeoutJob: Job? = null
  
      private var isClipboardFresh: Boolean = false
-@@ -156,6 +178,33 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -156,6 +181,37 @@ class InputBarDelegate : InputBroadcastReceiver {
              clipboardUi.dismiss.setOnClickListener {
                  dismissClipboardSuggestion()
              }
++            floatingKeyboardButton.apply {
++                visibility = if (floatingKeyboardToolbarButton) View.VISIBLE else View.GONE
++                setOnClickListener { FloatingKeyboard.toggle() }
++            }
 +            asrkbVoiceButton.apply {
 +                if (bibiAidlVoiceEnabled && bibiToolbarMicButton) {
 +                    visibility = View.VISIBLE
@@ -1160,7 +1185,7 @@ index 4860737..f6ee70a 100644
          }
      }
  
-@@ -259,6 +308,20 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -259,6 +315,20 @@ class InputBarDelegate : InputBroadcastReceiver {
              evalAlwaysUiState()
              ClipboardHelper.addOnUpdateListener(onClipboardUpdateListener)
              syncToolbarOptionStates()
@@ -1181,7 +1206,7 @@ index 4860737..f6ee70a 100644
          }
      }
  
-@@ -357,4 +420,13 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -357,4 +427,13 @@ class InputBarDelegate : InputBroadcastReceiver {
      override fun onRimeOptionUpdated(value: RimeMessage.OptionMessage.Data) {
          alwaysUi.updateButtonsStyle(value.option, value.value)
      }
@@ -1196,7 +1221,7 @@ index 4860737..f6ee70a 100644
 +    }
  }
 diff --git a/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt b/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
-index e81e517..37ea0d3 100644
+index e81e517..fe54382 100644
 --- a/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
 @@ -6,6 +6,7 @@
@@ -1207,7 +1232,7 @@ index e81e517..37ea0d3 100644
  import android.widget.ViewAnimator
  import androidx.annotation.DrawableRes
  import androidx.constraintlayout.widget.ConstraintLayout
-@@ -68,6 +69,10 @@ class AlwaysUi(
+@@ -68,6 +69,16 @@ class AlwaysUi(
      val inlineSuggestionsUi = InlineSuggestionsUi(ctx)
  
      val hideKeyboardButton = ToolButton(ctx, R.drawable.ic_baseline_arrow_drop_down_24)
@@ -1215,10 +1240,16 @@ index e81e517..37ea0d3 100644
 +        ToolButton(ctx, R.drawable.ic_baseline_mic_24).apply {
 +            visibility = View.GONE
 +        }
++
++    /** 悬浮键盘开关按钮（是否显示由设置项控制） */
++    val floatingKeyboardButton =
++        ToolButton(ctx, R.drawable.ic_baseline_drag_handle_24).apply {
++            visibility = View.GONE
++        }
      private val rightMostButton =
          ViewAnimator(ctx).apply {
              add(hideKeyboardButton, lParams(matchParent, matchParent))
-@@ -104,11 +109,18 @@ class AlwaysUi(
+@@ -104,11 +115,25 @@ class AlwaysUi(
                  centerVertically()
              },
          )
@@ -1229,12 +1260,19 @@ index e81e517..37ea0d3 100644
 +                centerVertically()
 +            },
 +        )
++        add(
++            floatingKeyboardButton,
++            lParams(rightWidth, rightHeight) {
++                before(asrkbVoiceButton)
++                centerVertically()
++            },
++        )
          add(
              animator,
              lParams(matchConstraints, matchParent) {
                  after(leftMostButton)
 -                before(rightMostButton)
-+                before(asrkbVoiceButton)
++                before(floatingKeyboardButton)
                  endOfParent()
                  centerVertically()
              },
@@ -2008,15 +2046,89 @@ index 3e396c2..5cfe0e0 100644
                  collectionBeansAdapter.submitData(it)
              }
          }
+diff --git a/app/src/main/java/com/osfans/trime/ime/core/FloatingKeyboard.kt b/app/src/main/java/com/osfans/trime/ime/core/FloatingKeyboard.kt
+new file mode 100755
+index 0000000..ea9aa75
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/ime/core/FloatingKeyboard.kt
+@@ -0,0 +1,67 @@
++/*
++ * SPDX-FileCopyrightText: 2015 - 2026 Rime community
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.ime.core
++
++import android.content.Context
++import android.content.SharedPreferences
++import com.osfans.trime.util.appContext
++
++/**
++ * 悬浮键盘的共享状态（开关 + 位置 / 缩放）。
++ *
++ * 独立于 [com.osfans.trime.data.prefs.AppPrefs]，便于设置界面、输入法工具栏、
++ * 三点菜单窗口与主题预设键（`command: floating_keyboard`）共同读写同一状态。
++ */
++object FloatingKeyboard {
++    const val PREFS_NAME = "dahi_floating_keyboard"
++    const val KEY_ENABLED = "enabled"
++    private const val KEY_X = "x"
++    private const val KEY_Y = "y"
++    private const val KEY_SCALE = "scale"
++
++    const val DEFAULT_SCALE = 0.9f
++    const val MIN_SCALE = 0.5f
++    const val SCALE_STEP = 0.1f
++
++    private val prefs: SharedPreferences by lazy {
++        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
++    }
++
++    fun isEnabled(): Boolean = prefs.getBoolean(KEY_ENABLED, false)
++
++    fun setEnabled(value: Boolean) {
++        prefs.edit().putBoolean(KEY_ENABLED, value).apply()
++    }
++
++    fun toggle() {
++        setEnabled(!isEnabled())
++    }
++
++    fun getScale(): Float = prefs.getFloat(KEY_SCALE, DEFAULT_SCALE).coerceIn(MIN_SCALE, 1f)
++
++    fun setScale(value: Float) {
++        prefs.edit().putFloat(KEY_SCALE, value.coerceIn(MIN_SCALE, 1f)).apply()
++    }
++
++    fun getX(): Float = prefs.getFloat(KEY_X, 0f)
++
++    fun getY(): Float = prefs.getFloat(KEY_Y, 0f)
++
++    fun setPosition(
++        x: Float,
++        y: Float,
++    ) {
++        prefs.edit().putFloat(KEY_X, x).putFloat(KEY_Y, y).apply()
++    }
++
++    fun registerListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
++        prefs.registerOnSharedPreferenceChangeListener(listener)
++    }
++
++    fun unregisterListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
++        prefs.unregisterOnSharedPreferenceChangeListener(listener)
++    }
++}
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-index 1edb256..25824e4 100644
+index 1edb256..cf11f2f 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-@@ -6,17 +6,31 @@
+@@ -6,21 +6,37 @@
  package com.osfans.trime.ime.core
  
  import android.annotation.SuppressLint
 +import android.content.Context
++import android.content.SharedPreferences
 +import android.content.res.Configuration
 +import android.graphics.Color
 +import android.graphics.Outline
@@ -2044,17 +2156,31 @@ index 1edb256..25824e4 100644
  import com.osfans.trime.core.CompositionProto
  import com.osfans.trime.core.RimeMessage
  import com.osfans.trime.daemon.RimeSession
-@@ -139,6 +153,50 @@ class InputView(
+ import com.osfans.trime.data.prefs.AppPrefs
++import com.osfans.trime.data.prefs.PreferenceDelegate
+ import com.osfans.trime.data.theme.ColorManager
+ import com.osfans.trime.data.theme.Theme
+ import com.osfans.trime.ime.bar.InputBarDelegate
+@@ -139,6 +155,59 @@ class InputView(
  
      val keyboardView: View
  
 +    // ============================================================
 +    //  悬浮键盘（dahi）：键盘可自由拖动、缩放，并作为可触摸区域浮动在应用之上
 +    // ============================================================
-+    private val floatingPref by lazy { AppPrefs.defaultInstance().keyboard.floatingKeyboard }
-+    private val floatingPrefs = service.getSharedPreferences(FLOATING_PREFS_NAME, Context.MODE_PRIVATE)
++    private val keyboardTransparency by AppPrefs.defaultInstance().keyboard.keyboardTransparency
 +    private var floatingActive = false
-+    private var floatingScale = DEFAULT_SCALE
++    private var floatingScale = FloatingKeyboard.DEFAULT_SCALE
++
++    /** 悬浮开关变化（工具栏按钮/菜单/预设键）后实时生效，无需重建视图 */
++    private val floatingStateListener =
++        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
++            if (key == FloatingKeyboard.KEY_ENABLED) post { applyFloatingState() }
++        }
++
++    /** 键盘透明度实时生效 */
++    private val transparencyListener =
++        PreferenceDelegate.OnChangeListener<Int> { _, _ -> post { applyKeyboardAlpha() } }
 +
 +    private val floatingHandleTextColor: Int =
 +        safeThemeColor(
@@ -2095,7 +2221,7 @@ index 1edb256..25824e4 100644
      init {
          // MUST call before any operation
          inputDepMgr.start()
-@@ -159,6 +217,13 @@ class InputView(
+@@ -159,6 +228,13 @@ class InputView(
                          centerInParent()
                      },
                  )
@@ -2109,7 +2235,7 @@ index 1edb256..25824e4 100644
                  add(
                      inputBar.view,
                      lParams(matchParent, dp(inputBar.themedHeight)) {
-@@ -232,6 +297,266 @@ class InputView(
+@@ -232,6 +308,266 @@ class InputView(
                  centerInParent()
              },
          )
@@ -2210,11 +2336,7 @@ index 1edb256..25824e4 100644
 +                    true
 +                }
 +                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-+                    floatingPrefs
-+                        .edit()
-+                        .putFloat(KEY_FLOATING_X, keyboardView.translationX)
-+                        .putFloat(KEY_FLOATING_Y, keyboardView.translationY)
-+                        .apply()
++                    FloatingKeyboard.setPosition(keyboardView.translationX, keyboardView.translationY)
 +                    true
 +                }
 +                else -> false
@@ -2223,17 +2345,21 @@ index 1edb256..25824e4 100644
 +    }
 +
 +    private fun changeFloatingScale(delta: Float) {
-+        val current = floatingPrefs.getFloat(KEY_FLOATING_SCALE, DEFAULT_SCALE)
-+        floatingScale = (current + delta).coerceIn(MIN_SCALE, 1f)
-+        floatingPrefs.edit().putFloat(KEY_FLOATING_SCALE, floatingScale).apply()
++        floatingScale = (FloatingKeyboard.getScale() + delta).coerceIn(FloatingKeyboard.MIN_SCALE, 1f)
++        FloatingKeyboard.setScale(floatingScale)
 +        clampFloating()
 +        applyFloatingVisuals()
 +        requestLayout()
 +    }
 +
 +    private fun dockFloating() {
-+        floatingPrefs.edit().putFloat(KEY_FLOATING_X, 0f).putFloat(KEY_FLOATING_Y, 0f).apply()
-+        floatingPref.setValue(false)
++        FloatingKeyboard.setPosition(0f, 0f)
++        FloatingKeyboard.setEnabled(false)
++    }
++
++    /** 键盘透明度（关键字：不影响既有默认值，默认 100%） */
++    private fun applyKeyboardAlpha() {
++        keyboardView.alpha = (keyboardTransparency.getValue() / 100f).coerceIn(0.1f, 1f)
 +    }
 +
 +    /** 应用缩放/位移与预编辑跟随（不含可见性与约束切换）。 */
@@ -2271,13 +2397,12 @@ index 1edb256..25824e4 100644
 +    }
 +
 +    private fun applyFloatingState() {
-+        val enabled = runCatching { floatingPref.getValue() }.getOrDefault(false)
++        val enabled = runCatching { FloatingKeyboard.isEnabled() }.getOrDefault(false)
 +        floatingActive = enabled
 +        if (enabled) {
-+            floatingScale =
-+                floatingPrefs.getFloat(KEY_FLOATING_SCALE, DEFAULT_SCALE).coerceIn(MIN_SCALE, 1f)
-+            keyboardView.translationX = floatingPrefs.getFloat(KEY_FLOATING_X, 0f)
-+            keyboardView.translationY = floatingPrefs.getFloat(KEY_FLOATING_Y, 0f)
++            floatingScale = FloatingKeyboard.getScale()
++            keyboardView.translationX = FloatingKeyboard.getX()
++            keyboardView.translationY = FloatingKeyboard.getY()
 +            floatingHandle.visibility = View.VISIBLE
 +            inputBar.view.updateLayoutParams<LayoutParams> {
 +                topToTop = ConstraintLayout.LayoutParams.UNSET
@@ -2309,6 +2434,7 @@ index 1edb256..25824e4 100644
 +        }
 +        clampFloating()
 +        applyFloatingVisuals()
++        applyKeyboardAlpha()
 +        requestLayout()
 +    }
 +
@@ -2376,18 +2502,28 @@ index 1edb256..25824e4 100644
      }
  
      private fun updateKeyboardSize() {
-@@ -345,4 +670,17 @@ class InputView(
+@@ -336,7 +672,15 @@ class InputView(
+     @RequiresApi(Build.VERSION_CODES.R)
+     fun handleInlineSuggestions(response: InlineSuggestionsResponse): Boolean = inputBar.handleInlineSuggestions(response)
+ 
++    override fun onAttachedToWindow() {
++        super.onAttachedToWindow()
++        FloatingKeyboard.registerListener(floatingStateListener)
++        keyboardTransparency.registerOnChangeListener(transparencyListener)
++    }
++
+     override fun onDetachedFromWindow() {
++        FloatingKeyboard.unregisterListener(floatingStateListener)
++        keyboardTransparency.unregisterOnChangeListener(transparencyListener)
+         ViewCompat.setOnApplyWindowInsetsListener(this, null)
+         // cancel the notification job and clear all broadcast receivers,
+         // implies that InputView should not be attached again after detached.
+@@ -345,4 +689,11 @@ class InputView(
          inputDepMgr.stop()
          super.onDetachedFromWindow()
      }
 +
 +    companion object {
-+        private const val FLOATING_PREFS_NAME = "dahi_floating_keyboard"
-+        private const val KEY_FLOATING_X = "x"
-+        private const val KEY_FLOATING_Y = "y"
-+        private const val KEY_FLOATING_SCALE = "scale"
-+        private const val DEFAULT_SCALE = 0.9f
-+        private const val MIN_SCALE = 0.5f
 +        private const val SCALE_STEP = 0.1f
 +        private const val FLOATING_HANDLE_HEIGHT_DP = 30
 +        private const val FLOATING_CORNER_DP = 14
@@ -2395,7 +2531,7 @@ index 1edb256..25824e4 100644
 +    }
  }
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
-index 6bba2fa..fd226ed 100644
+index 6bba2fa..1f0a716 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
 @@ -47,14 +47,17 @@ import com.osfans.trime.data.prefs.PreferenceDelegateProvider
@@ -2420,7 +2556,7 @@ index 6bba2fa..fd226ed 100644
          prefs.keyboard.hideKeySymbol,
          prefs.keyboard.hideKeyHint,
          prefs.keyboard.hideInputBar,
-+        prefs.keyboard.floatingKeyboard,
++        prefs.keyboard.floatingKeyboardToolbarButton,
          prefs.advanced.ignoreSystemGestureInsets,
      )
  
@@ -2509,12 +2645,13 @@ index 6bba2fa..fd226ed 100644
      }
  
      private fun handleCursorUpdate(
-@@ -460,6 +491,45 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -460,6 +491,50 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
  
      override fun onComputeInsets(outInsets: Insets) {
          if (inputDeviceManager.useVirtualKeyboard) {
-+            // 悬浮键盘：应用窗口保持全屏（内容上界置 0），可触摸区精确限定为
-+            // 键盘（含搜索浮层）矩形，其余区域的点击穿透到下层应用。
++            // 悬浮键盘：不占用应用内容区（避免应用被压成 0 高度而黑屏/闪退），
++            // 键盘仅作为浮层叠加在应用之上；可触摸区精确限定为键盘（含浮层）矩形，
++            // 其余区域的点击照常穿透到下层应用。
 +            val floatingRect = inputView?.floatingRectInWindow()
 +            if (floatingRect != null) {
 +                // 候选视图（如“始终显示候选窗口”模式）若可见，一并纳入可触摸区
@@ -2528,9 +2665,13 @@ index 6bba2fa..fd226ed 100644
 +                        floatingRect[2] = maxOf(floatingRect[2], cvLoc[0] + cv.width)
 +                        floatingRect[3] = maxOf(floatingRect[3], cvLoc[1] + cv.height)
 +                    }
++                // 与“未使用虚拟键盘”时一致：内容上界取整屏，表示输入法不占应用内容区，
++                // 应用窗口保持原样（不会变成 0 高度）。可触摸区仍精确限定为键盘矩形。
++                val navBarHeight = decorView.findViewById<View>(android.R.id.navigationBarBackground)?.height ?: 0
++                val noContentInset = decorView.height - navBarHeight
 +                outInsets.apply {
-+                    contentTopInsets = 0
-+                    visibleTopInsets = 0
++                    contentTopInsets = noContentInset
++                    visibleTopInsets = noContentInset
 +                    touchableInsets = Insets.TOUCHABLE_INSETS_REGION
 +                    touchableRegion.set(
 +                        floatingRect[0],
@@ -2555,7 +2696,7 @@ index 6bba2fa..fd226ed 100644
              inputView?.keyboardView?.getLocationInWindow(inputViewLocation)
              outInsets.apply {
                  contentTopInsets = inputViewLocation[1]
-@@ -513,6 +583,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -513,6 +588,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          attribute: EditorInfo,
          restarting: Boolean,
      ) {
@@ -2563,7 +2704,7 @@ index 6bba2fa..fd226ed 100644
          composingText = ""
          Timber.d("onStartInput: restarting=$restarting")
          val isNullType = attribute.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_NULL
-@@ -544,6 +615,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -544,6 +620,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          restarting: Boolean,
      ) {
          Timber.d("onStartInputView: restarting=$restarting")
@@ -2572,7 +2713,7 @@ index 6bba2fa..fd226ed 100644
          InputFeedbackManager.startInput()
          postRimeJob {
              updateRimeOption(this)
-@@ -579,10 +652,30 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -579,10 +657,30 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          postRimeJob {
              clearComposition()
          }
@@ -2604,17 +2745,22 @@ index 6bba2fa..fd226ed 100644
  
          // when composing text equals commit content, finish composing text as-is
 diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
-index 421b007..816fc60 100644
+index 421b007..225490f 100644
 --- a/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
-@@ -191,6 +191,10 @@ class CommonKeyboardActionListener {
+@@ -22,6 +22,7 @@ import com.osfans.trime.data.theme.ColorManager
+ import com.osfans.trime.data.theme.KeyActionManager
+ import com.osfans.trime.data.theme.ThemeManager
+ import com.osfans.trime.ime.clipboard.ClipboardWindow
++import com.osfans.trime.ime.core.FloatingKeyboard
+ import com.osfans.trime.ime.core.TrimeInputMethodService
+ import com.osfans.trime.ime.dependency.InputDependencyManager
+ import com.osfans.trime.ime.dialog.EnabledSchemaPickerDialog
+@@ -191,6 +192,7 @@ class CommonKeyboardActionListener {
                      "select_candidate" -> handleSelectCandidate(arg)
                      "switch_hide_key_symbol" -> switchHideKeySymbol()
                      "switch_hide_key_hint" -> switchHideKeyHint()
-+                    "floating_keyboard" -> {
-+                        val p = AppPrefs.defaultInstance().keyboard.floatingKeyboard
-+                        p.setValue(!p.getValue())
-+                    }
++                    "floating_keyboard" -> FloatingKeyboard.toggle()
                      else -> handleIntentAction(action.command, arg)
                  }
              }
@@ -2863,6 +3009,129 @@ index dc20453..436dbab 100644
      override fun onStartInput(info: EditorInfo) {
          val targetKeyboard =
              when (info.imeOptions and EditorInfo.IME_FLAG_FORCE_ASCII) {
+diff --git a/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionEntry.kt b/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionEntry.kt
+index a51faa5..bae97b3 100644
+--- a/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionEntry.kt
++++ b/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionEntry.kt
+@@ -20,6 +20,7 @@ sealed class SwitchOptionEntry(
+             UpdateConfig,
+             Keyboard,
+             ThemeList,
++            FloatingKeyboard,
+         }
+     }
+ 
+diff --git a/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionWindow.kt b/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionWindow.kt
+index bc6e4c8..8bf09e6 100644
+--- a/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionWindow.kt
++++ b/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionWindow.kt
+@@ -20,6 +20,7 @@ import com.osfans.trime.daemon.launchOnReady
+ import com.osfans.trime.data.theme.Theme
+ import com.osfans.trime.ime.bar.ui.ToolButton
+ import com.osfans.trime.ime.broadcast.InputBroadcastReceiver
++import com.osfans.trime.ime.core.FloatingKeyboard
+ import com.osfans.trime.ime.core.TrimeInputMethodService
+ import com.osfans.trime.ime.dialog.EnabledSchemaPickerDialog
+ import com.osfans.trime.ime.window.BoardWindow
+@@ -42,30 +43,39 @@ class SwitchOptionWindow :
+     private val rime: RimeSession by di.instance()
+     private val theme: Theme by di.instance()
+ 
+-    private val staticEntries by lazy {
+-        arrayOf(
+-            SwitchOptionEntry.Static(
+-                context.getString(R.string.theme),
+-                R.drawable.ic_baseline_color_lens_24,
+-                SwitchOptionEntry.Static.Type.ThemeList,
+-            ),
+-            SwitchOptionEntry.Static(
+-                context.getString(R.string.schemata),
+-                R.drawable.ic_round_view_list_24,
+-                SwitchOptionEntry.Static.Type.SchemaList,
+-            ),
+-            SwitchOptionEntry.Static(
+-                context.getString(R.string.update_config),
+-                R.drawable.ic_baseline_sync_24,
+-                SwitchOptionEntry.Static.Type.UpdateConfig,
+-            ),
+-            SwitchOptionEntry.Static(
+-                context.getString(R.string.virtual_keyboard),
+-                R.drawable.ic_baseline_keyboard_24,
+-                SwitchOptionEntry.Static.Type.Keyboard,
++    private fun buildStaticEntries(): Array<SwitchOptionEntry.Static> = arrayOf(
++        SwitchOptionEntry.Static(
++            context.getString(R.string.theme),
++            R.drawable.ic_baseline_color_lens_24,
++            SwitchOptionEntry.Static.Type.ThemeList,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(R.string.schemata),
++            R.drawable.ic_round_view_list_24,
++            SwitchOptionEntry.Static.Type.SchemaList,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(R.string.update_config),
++            R.drawable.ic_baseline_sync_24,
++            SwitchOptionEntry.Static.Type.UpdateConfig,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(R.string.virtual_keyboard),
++            R.drawable.ic_baseline_keyboard_24,
++            SwitchOptionEntry.Static.Type.Keyboard,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(
++                if (FloatingKeyboard.isEnabled()) {
++                    R.string.dahi_floating_keyboard_menu_on
++                } else {
++                    R.string.dahi_floating_keyboard_menu_off
++                },
+             ),
+-        )
+-    }
++            R.drawable.ic_baseline_drag_handle_24,
++            SwitchOptionEntry.Static.Type.FloatingKeyboard,
++        ),
++    )
+ 
+     var popupMenu: PopupMenu? = null
+ 
+@@ -116,6 +126,17 @@ class SwitchOptionWindow :
+                             }
+                         }
+                         SwitchOptionEntry.Static.Type.Keyboard -> AppUtils.launchMainToKeyboard(context)
++                        SwitchOptionEntry.Static.Type.FloatingKeyboard -> {
++                            FloatingKeyboard.toggle()
++                            updateSchemaOptionEntries()
++                            val toastRes =
++                                if (FloatingKeyboard.isEnabled()) {
++                                    R.string.dahi_floating_keyboard_toast_on
++                                } else {
++                                    R.string.dahi_floating_keyboard_toast_off
++                                }
++                            Toast.makeText(service, toastRes, Toast.LENGTH_SHORT).show()
++                        }
+                         SwitchOptionEntry.Static.Type.ThemeList -> showDialog { r ->
+                             ThemePickerDialog.build(service.lifecycleScope, context) {
+                                 r.commitComposition()
+@@ -165,7 +186,7 @@ class SwitchOptionWindow :
+         val switches = rime.run { schemaCached }.switches
+         adapter.submitList(
+             listOf(
+-                *staticEntries,
++                *buildStaticEntries(),
+                 *switches.mapNotNull { SwitchOptionEntry.fromSwitch(rime, it) }.toTypedArray(),
+             ),
+         )
+@@ -207,7 +228,7 @@ class SwitchOptionWindow :
+             service.lifecycleScope.launch {
+                 adapter.submitList(
+                     listOf(
+-                        *staticEntries,
++                        *buildStaticEntries(),
+                         *data.mapNotNull { SwitchOptionEntry.fromSwitch(rime, it) }.toTypedArray(),
+                     ),
+                 )
 diff --git a/app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt b/app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt
 new file mode 100755
 index 0000000..d0d7159
@@ -4937,10 +5206,10 @@ index 0000000..151ef50
 +</resources>
 diff --git a/app/src/main/res/values/strings_dahi_floating.xml b/app/src/main/res/values/strings_dahi_floating.xml
 new file mode 100755
-index 0000000..d6baeed
+index 0000000..84d7cda
 --- /dev/null
 +++ b/app/src/main/res/values/strings_dahi_floating.xml
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,22 @@
 +<?xml version="1.0" encoding="utf-8"?>
 +
 +<!--
@@ -4950,12 +5219,18 @@ index 0000000..d6baeed
 +
 +<resources>
 +    <!-- 悬浮键盘 -->
-+    <string name="dahi_floating_keyboard">悬浮键盘</string>
++    <string name="dahi_floating_keyboard_toolbar_button">工具栏显示悬浮键盘按钮</string>
 +    <string name="dahi_floating_keyboard_summary">键盘可自由拖动、缩放；关闭即恢复停靠</string>
 +    <string name="dahi_floating_keyboard_handle">拖动此处移动键盘 · 悬浮键盘</string>
 +    <string name="dahi_floating_keyboard_shrink">－</string>
 +    <string name="dahi_floating_keyboard_grow">＋</string>
 +    <string name="dahi_floating_keyboard_dock">停靠</string>
++    <string name="dahi_floating_keyboard_menu_on">悬浮键盘·开</string>
++    <string name="dahi_floating_keyboard_menu_off">悬浮键盘·关</string>
++    <string name="dahi_floating_keyboard_toast_on">已开启悬浮键盘，可拖动顶部把手移动键盘</string>
++    <string name="dahi_floating_keyboard_toast_off">已关闭悬浮键盘</string>
++    <!-- 键盘透明度 -->
++    <string name="dahi_keyboard_transparency">键盘透明度</string>
 +</resources>
 diff --git a/app/src/main/res/values/strings_dahi_voice.xml b/app/src/main/res/values/strings_dahi_voice.xml
 new file mode 100755
