@@ -80,10 +80,10 @@ index 0000000..d034338
 +          if-no-files-found: error
 diff --git a/README-DAHI.md b/README-DAHI.md
 new file mode 100755
-index 0000000..1dbabe8
+index 0000000..17bfb0f
 --- /dev/null
 +++ b/README-DAHI.md
-@@ -0,0 +1,130 @@
+@@ -0,0 +1,163 @@
 +# 同文输入法大海版（自用版）
 +
 +基于 [osfans/trime](https://github.com/osfans/trime) **v3.3.12**（tag `v3.3.12`，commit `e09ac711`）的定制源码。
@@ -139,6 +139,29 @@ index 0000000..1dbabe8
 +### 【4】共存包名 / 应用名
 +见文首。改动仅涉及 `applicationId` 与应用名资源，`namespace` 保持不变，尽量不影响其它设置。
 +
++### 【5】悬浮键盘
++- **两个入口**：① 工具栏「悬浮键盘」按钮（开关在 设置 → 虚拟键盘 → **工具栏显示悬浮键盘按钮**）；
++  ② 键盘左上角**「三点」菜单**中与「键盘样式 / 方案 / 虚拟键盘」并列的 **悬浮键盘·开 / 关**，
++  任何主题下都显示，无需先进「虚拟键盘」再跳转 App。进阶用户仍可用 yaml 预设键绑定 `command: floating_keyboard`。
++- 顶部把手可**拖动**，`－` `＋` 缩放，`停靠` 恢复贴底；位置与缩放会记忆到下次呼出。
++- 三个操作按钮做成**带描边的长条（pill）按钮并拉开间距**，键盘缩小时依然容易点准、不易误触。
++- 悬浮状态下输入法**不占用应用内容区**（点击可穿透到下层应用）；
++  **键盘透明度**可在 设置 → 虚拟键盘 中调节（10%–100%），悬浮时不遮挡内容。
++
++### 【6】声情意象 —— 语音输入实时动效（11 种）
++- **入口**：设置首页 → **声情意象**（位于「虚拟键盘」下方）。
++- **11 种动效**（系统默认顺序，1 号为默认值）：清纹徐流、静息沉光、星星点点、环漪悠漾、
++  碧浪腾舒、明律铿锵、迷雾萦回、海浪怒吼、一片空白、随遇随机、声随情迁（自适应）；
++  每个选项下方均显示对应的**情绪注释文案**。
++- **自由排序（联动）**：长按拖动选项即可调整顺序，该顺序会**同步到两个快捷切换入口的候选悬浮窗**。
++- **最大振动幅度上限**：一个滑块统一限制所有动效的最大振幅（第 9 项「一片空白」零动效、不受影响）。
++- **自适应灵敏度**：仅影响第 11 项「声随情迁」按声音活跃度在 8 套动效间过渡的快慢。
++- **两个快捷切换入口**：
++  1. 工具栏 **♬ 按钮**（开关在 设置 → 声情意象 → *工具栏显示声情意象快捷切换按钮*）；
++  2. 键盘左上角**「三点」菜单**的一级项「声情意象 · 切换动效」。
++  两者点开即为候选悬浮窗，一键切换，无需跳转 App。
++- **随备份走**：备份弹窗新增可勾选 **「声情意象动效参数」**；还原时同样可单独选择。
++
 +---
 +
 +## 二、如何编译出 APK
@@ -177,7 +200,12 @@ index 0000000..1dbabe8
 +- `app/src/main/java/com/osfans/trime/link/`：`AsrkbSpeechClient.kt`、`AsrkbExternalInputSession.kt`、
 +  `AsrkbRecordingAudioFocusController.kt`、`AsrkbVoiceHoldSessionController.kt`、
 +  `VoiceOverlayUiBridge.kt`、`MicPermissionActivity.kt`
-+- `app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt`
++- `app/src/main/java/com/osfans/trime/ime/voice/`：`VoiceImagery.kt`（11 项定义与持久化）、
++  `VoiceImageryView.kt`（11 种动效实时渲染）、`VoiceImageryPickerDialog.kt`（快捷切换悬浮窗）
++- `app/src/main/java/com/osfans/trime/ui/main/settings/VoiceImagerySettingsFragment.kt`
++- `app/src/main/res/layout/`：`fragment_dahi_voice_imagery.xml`、`item_dahi_vi_header.xml`、`item_dahi_vi_option.xml`
++- `app/src/main/res/values/strings_dahi_voice_imagery.xml`、`strings_dahi_floating.xml`
++- `app/src/main/res/drawable/`：`dahi_vi_divider.xml`、`ic_dahi_music_note_24.xml`
 +- `app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchBridge.kt`
 +- `app/src/main/java/com/osfans/trime/data/backup/`：`BackupData.kt`、`BackupCrypto.kt`、
 +  `BackupManager.kt`、`BackupRestoreDialog.kt`
@@ -195,7 +223,10 @@ index 0000000..1dbabe8
 +- `data/prefs/AppPrefs.kt`（常规页 3 个开关）
 +- `ime/bar/InputBarDelegate.kt`、`ime/bar/ui/AlwaysUi.kt`（工具栏麦克风按钮）
 +- `ime/keyboard/KeyView.kt`、`KeyboardView.kt`、`KeyboardWindow.kt`（长按空格 / 录音浮层）
-+- `ime/core/TrimeInputMethodService.kt`（语音生命周期钩子 + 搜索框文本重定向）
++- `ime/core/TrimeInputMethodService.kt`（语音生命周期钩子 + 搜索框文本重定向 + 悬浮键盘 insets）
++- `ime/core/InputView.kt`、`ime/core/FloatingKeyboard.kt`（悬浮键盘：拖动/缩放/停靠/透明度）
++- `ime/switches/SwitchOptionEntry.kt`、`SwitchOptionWindow.kt`（三点菜单一级项：悬浮键盘 / 声情意象）
++- `data/backup/*`（声情意象参数纳入备份与还原）
 +- `ime/clipboard/*`（搜索、拖动排序、置顶）
 +- `data/db/*`（orderIndex 列、迁移、查询）
 +- `ui/main/settings/ProfileSettingsFragment.kt`（备份与还原入口）
@@ -210,7 +241,9 @@ index 0000000..1dbabe8
 +   （已用 try/catch + 提示兜底）。
 +3. **工具栏麦克风开关切换后**如未立即生效，请按提示在键盘样式中切换主题再切回以刷新（与原版按钮刷新机制一致）。
 +4. 备份/还原为**整体覆盖**所选数据，请在还原前确认。
-+5. 波形图为去除三方依赖后的自绘实现，外观与原 fork 略有差异。
++5. 声情意象动效为去除三方依赖后的**自绘实现**；第 11 项「声随情迁」用
++   「音量 + 音量变化速率」近似声音活跃度，不做真实 PCM 分析与语义情绪识别。
++6. 悬浮键盘缩小后若要最舒适的点按手感，建议缩放保持在 60% 以上。
 +
 +## 五、许可
 +沿用上游 GPL-3.0-or-later。
@@ -370,10 +403,10 @@ index 0000000..273af55
 +}
 diff --git a/app/src/main/java/com/osfans/trime/data/backup/BackupData.kt b/app/src/main/java/com/osfans/trime/data/backup/BackupData.kt
 new file mode 100755
-index 0000000..2afc7d1
+index 0000000..507b24b
 --- /dev/null
 +++ b/app/src/main/java/com/osfans/trime/data/backup/BackupData.kt
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,52 @@
 +/*
 + * SPDX-FileCopyrightText: 2026 Rime community
 + *
@@ -400,6 +433,8 @@ index 0000000..2afc7d1
 +    val preferences: Map<String, BackupPreference>? = null,
 +    val clipboard: List<BackupBean>? = null,
 +    val collection: List<BackupBean>? = null,
++    /** 声情意象（语音动效）参数，键前缀见 [com.osfans.trime.ime.voice.VoiceImagery.KEY_PREFIX]。 */
++    val voiceImagery: Map<String, BackupPreference>? = null,
 +) {
 +    companion object {
 +        const val FORMAT = "dahi-trime-backup"
@@ -426,10 +461,10 @@ index 0000000..2afc7d1
 +)
 diff --git a/app/src/main/java/com/osfans/trime/data/backup/BackupManager.kt b/app/src/main/java/com/osfans/trime/data/backup/BackupManager.kt
 new file mode 100755
-index 0000000..5f1c8e4
+index 0000000..169c5bf
 --- /dev/null
 +++ b/app/src/main/java/com/osfans/trime/data/backup/BackupManager.kt
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,137 @@
 +/*
 + * SPDX-FileCopyrightText: 2026 Rime community
 + *
@@ -444,6 +479,7 @@ index 0000000..5f1c8e4
 +import com.osfans.trime.data.db.ClipboardHelper
 +import com.osfans.trime.data.db.CollectionHelper
 +import com.osfans.trime.data.db.DatabaseBean
++import com.osfans.trime.ime.voice.VoiceImagery
 +import com.osfans.trime.util.appContext
 +import kotlinx.serialization.encodeToString
 +import kotlinx.serialization.json.Json
@@ -472,14 +508,15 @@ index 0000000..5f1c8e4
 +        includePreferences: Boolean,
 +        includeClipboard: Boolean,
 +        includeCollection: Boolean,
-+    ): BackupData =
-+        BackupData(
-+            timestamp = System.currentTimeMillis(),
-+            appVersion = BuildConfig.BUILD_VERSION_NAME,
-+            preferences = if (includePreferences) exportPreferences() else null,
-+            clipboard = if (includeClipboard) ClipboardHelper.exportBeans().map { it.toBackupBean() } else null,
-+            collection = if (includeCollection) CollectionHelper.exportBeans().map { it.toBackupBean() } else null,
-+        )
++        includeVoiceImagery: Boolean = false,
++    ): BackupData = BackupData(
++        timestamp = System.currentTimeMillis(),
++        appVersion = BuildConfig.BUILD_VERSION_NAME,
++        preferences = if (includePreferences) exportPreferences() else null,
++        clipboard = if (includeClipboard) ClipboardHelper.exportBeans().map { it.toBackupBean() } else null,
++        collection = if (includeCollection) CollectionHelper.exportBeans().map { it.toBackupBean() } else null,
++        voiceImagery = if (includeVoiceImagery) exportVoiceImagery() else null,
++    )
 +
 +    fun encode(
 +        data: BackupData,
@@ -496,16 +533,24 @@ index 0000000..5f1c8e4
 +        restorePreferences: Boolean,
 +        restoreClipboard: Boolean,
 +        restoreCollection: Boolean,
++        restoreVoiceImagery: Boolean = false,
 +    ) {
-+        if (restorePreferences) data.preferences?.let { importPreferences(it) }
++        if (restorePreferences) data.preferences?.let { importPreferences(it) { key -> !key.startsWith(VoiceImagery.KEY_PREFIX) } }
 +        if (restoreClipboard) data.clipboard?.let { beans -> ClipboardHelper.restoreBeans(beans.map { it.toBean() }) }
 +        if (restoreCollection) data.collection?.let { beans -> CollectionHelper.restoreBeans(beans.map { it.toBean() }) }
++        if (restoreVoiceImagery) data.voiceImagery?.let { importPreferences(it) { key -> key.startsWith(VoiceImagery.KEY_PREFIX) } }
 +    }
 +
-+    private fun exportPreferences(): Map<String, BackupPreference> {
++    private fun exportPreferences(): Map<String, BackupPreference> = exportPreferencesByFilter { key -> !key.startsWith(VoiceImagery.KEY_PREFIX) }
++
++    /** 单独导出声情意象参数，便于备份时独立勾选。 */
++    private fun exportVoiceImagery(): Map<String, BackupPreference> = exportPreferencesByFilter { key -> key.startsWith(VoiceImagery.KEY_PREFIX) }
++
++    private fun exportPreferencesByFilter(filter: (String) -> Boolean): Map<String, BackupPreference> {
 +        val shared = PreferenceManager.getDefaultSharedPreferences(appContext)
 +        val result = linkedMapOf<String, BackupPreference>()
 +        shared.all.forEach { (key, value) ->
++            if (!filter(key)) return@forEach
 +            when (value) {
 +                is Boolean -> result[key] = BackupPreference("BOOLEAN", JsonPrimitive(value))
 +                is Int -> result[key] = BackupPreference("INT", JsonPrimitive(value))
@@ -520,10 +565,14 @@ index 0000000..5f1c8e4
 +        return result
 +    }
 +
-+    private fun importPreferences(preferences: Map<String, BackupPreference>) {
++    private fun importPreferences(
++        preferences: Map<String, BackupPreference>,
++        filter: (String) -> Boolean = { true },
++    ) {
 +        val shared = PreferenceManager.getDefaultSharedPreferences(appContext)
 +        shared.edit {
 +            preferences.forEach { (key, pref) ->
++                if (!filter(key)) return@forEach
 +                runCatching {
 +                    when (pref.type) {
 +                        "BOOLEAN" -> putBoolean(key, pref.value.jsonPrimitive.boolean)
@@ -544,22 +593,21 @@ index 0000000..5f1c8e4
 +
 +    private fun DatabaseBean.toBackupBean() = BackupBean(text, html, type.name, time, pinned, orderIndex)
 +
-+    private fun BackupBean.toBean() =
-+        DatabaseBean(
-+            text = text,
-+            html = html,
-+            type = runCatching { DatabaseBean.BeanType.valueOf(type) }.getOrDefault(DatabaseBean.BeanType.TEXT),
-+            time = time,
-+            pinned = pinned,
-+            orderIndex = orderIndex,
-+        )
++    private fun BackupBean.toBean() = DatabaseBean(
++        text = text,
++        html = html,
++        type = runCatching { DatabaseBean.BeanType.valueOf(type) }.getOrDefault(DatabaseBean.BeanType.TEXT),
++        time = time,
++        pinned = pinned,
++        orderIndex = orderIndex,
++    )
 +}
 diff --git a/app/src/main/java/com/osfans/trime/data/backup/BackupRestoreDialog.kt b/app/src/main/java/com/osfans/trime/data/backup/BackupRestoreDialog.kt
 new file mode 100755
-index 0000000..1afb760
+index 0000000..d818e72
 --- /dev/null
 +++ b/app/src/main/java/com/osfans/trime/data/backup/BackupRestoreDialog.kt
-@@ -0,0 +1,281 @@
+@@ -0,0 +1,294 @@
 +/*
 + * SPDX-FileCopyrightText: 2026 Rime community
 + *
@@ -627,8 +675,9 @@ index 0000000..1afb760
 +                ctx.getString(R.string.dahi_backup_pref),
 +                ctx.getString(R.string.dahi_backup_clipboard),
 +                ctx.getString(R.string.dahi_backup_collection),
++                ctx.getString(R.string.dahi_backup_voice_imagery),
 +            )
-+        val checked = booleanArrayOf(true, true, true)
++        val checked = booleanArrayOf(true, true, true, true)
 +        AlertDialog
 +            .Builder(ctx)
 +            .setTitle(R.string.dahi_backup_select_items)
@@ -641,7 +690,7 @@ index 0000000..1afb760
 +                    return@setPositiveButton
 +                }
 +                askPassword(R.string.dahi_backup_set_password) { password ->
-+                    performBackup(checked[0], checked[1], checked[2], password)
++                    performBackup(checked[0], checked[1], checked[2], checked[3], password)
 +                }
 +            }.show()
 +    }
@@ -655,6 +704,7 @@ index 0000000..1afb760
 +        includePreferences: Boolean,
 +        includeClipboard: Boolean,
 +        includeCollection: Boolean,
++        includeVoiceImagery: Boolean,
 +        password: CharArray,
 +    ) {
 +        if (backupInProgress) return
@@ -670,6 +720,7 @@ index 0000000..1afb760
 +                                includePreferences = includePreferences,
 +                                includeClipboard = includeClipboard,
 +                                includeCollection = includeCollection,
++                                includeVoiceImagery = includeVoiceImagery,
 +                            )
 +                        encrypted = BackupManager.encode(data, password)
 +                    }
@@ -760,12 +811,14 @@ index 0000000..1afb760
 +                ctx.getString(R.string.dahi_backup_pref),
 +                ctx.getString(R.string.dahi_backup_clipboard),
 +                ctx.getString(R.string.dahi_backup_collection),
++                ctx.getString(R.string.dahi_backup_voice_imagery),
 +            )
 +        val available =
 +            booleanArrayOf(
 +                data.preferences != null,
 +                data.clipboard != null,
 +                data.collection != null,
++                data.voiceImagery != null,
 +            )
 +        val checked = available.copyOf()
 +        AlertDialog
@@ -779,11 +832,12 @@ index 0000000..1afb760
 +                val restorePref = checked[0] && available[0]
 +                val restoreClip = checked[1] && available[1]
 +                val restoreColl = checked[2] && available[2]
-+                if (!(restorePref || restoreClip || restoreColl)) {
++                val restoreVoice = checked[3] && available[3]
++                if (!(restorePref || restoreClip || restoreColl || restoreVoice)) {
 +                    ctx.toast(R.string.dahi_backup_empty_selection)
 +                    return@setPositiveButton
 +                }
-+                applyRestore(data, restorePref, restoreClip, restoreColl)
++                applyRestore(data, restorePref, restoreClip, restoreColl, restoreVoice)
 +            }.show()
 +    }
 +
@@ -792,6 +846,7 @@ index 0000000..1afb760
 +        restorePreferences: Boolean,
 +        restoreClipboard: Boolean,
 +        restoreCollection: Boolean,
++        restoreVoiceImagery: Boolean,
 +    ) {
 +        val ctx = fragment.requireContext()
 +        fragment.lifecycleScope.launch {
@@ -799,7 +854,13 @@ index 0000000..1afb760
 +                runCatching {
 +                    withLoadingDialog(ctx) {
 +                        withContext(Dispatchers.IO) {
-+                            BackupManager.applyBackup(data, restorePreferences, restoreClipboard, restoreCollection)
++                            BackupManager.applyBackup(
++                                data,
++                                restorePreferences,
++                                restoreClipboard,
++                                restoreCollection,
++                                restoreVoiceImagery,
++                            )
 +                        }
 +                    }
 +                }.isSuccess
@@ -1016,7 +1077,7 @@ index d643496..ebfce73 100644
 +    suspend fun insertAll(beans: List<DatabaseBean>)
  }
 diff --git a/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt b/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
-index 4ae2758..7b00428 100644
+index 4ae2758..294b919 100644
 --- a/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
 +++ b/app/src/main/java/com/osfans/trime/data/prefs/AppPrefs.kt
 @@ -95,12 +95,36 @@ class AppPrefs(
@@ -1056,12 +1117,57 @@ index 4ae2758..7b00428 100644
          val preferredVoiceInput = list(
              R.string.preferred_voice_input,
              PREFERRED_VOICE_INPUT,
+@@ -124,6 +148,8 @@ class AppPrefs(
+ 
+             const val USE_SOFT_CURSOR = "use_soft_cursor"
+             const val HIDE_INPUT_BAR = "hide_input_bar"
++            const val FLOATING_KEYBOARD_TOOLBAR_BUTTON = "floating_keyboard_toolbar_button"
++            const val KEYBOARD_TRANSPARENCY = "keyboard_transparency"
+             const val HIDE_KEY_SYMBOL = "hide_key_symbol"
+             const val HIDE_KEY_HINT = "hide_key_hint"
+ 
+@@ -181,6 +207,24 @@ class AppPrefs(
+         val useSoftCursor = switch(R.string.use_soft_cursor, USE_SOFT_CURSOR, true)
+ 
+         val hideInputBar = switch(R.string.hide_input_bar, HIDE_INPUT_BAR, false)
++
++        val floatingKeyboardToolbarButton =
++            switch(
++                R.string.dahi_floating_keyboard_toolbar_button,
++                FLOATING_KEYBOARD_TOOLBAR_BUTTON,
++                true,
++                R.string.dahi_floating_keyboard_summary,
++            )
++
++        val keyboardTransparency =
++            int(
++                R.string.dahi_keyboard_transparency,
++                KEYBOARD_TRANSPARENCY,
++                100,
++                10,
++                100,
++                "%",
++            )
+         val hideKeySymbol = switch(R.string.hide_key_symbol, HIDE_KEY_SYMBOL, false)
+         val hideKeyHint = switch(R.string.hide_key_hint, HIDE_KEY_HINT, false)
+ 
 diff --git a/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt b/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
-index 4860737..f6ee70a 100644
+index 4860737..f78c322 100644
 --- a/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/bar/InputBarDelegate.kt
-@@ -43,6 +43,8 @@ import com.osfans.trime.ime.keyboard.KeyboardWindow
+@@ -35,14 +35,19 @@ import com.osfans.trime.ime.bar.ui.TabUi
+ import com.osfans.trime.ime.broadcast.InputBroadcastReceiver
+ import com.osfans.trime.ime.candidates.compact.CompactCandidateDelegate
+ import com.osfans.trime.ime.candidates.unrolled.window.FlexboxUnrolledCandidateWindow
++import com.osfans.trime.ime.core.FloatingKeyboard
+ import com.osfans.trime.ime.core.TrimeInputMethodService
+ import com.osfans.trime.ime.dependency.InputDependencyManager
+ import com.osfans.trime.ime.keyboard.CommonKeyboardActionListener
+ import com.osfans.trime.ime.keyboard.KeyBehavior
+ import com.osfans.trime.ime.keyboard.KeyboardWindow
  import com.osfans.trime.ime.switches.SwitchOptionWindow
++import com.osfans.trime.ime.voice.VoiceImagery
++import com.osfans.trime.ime.voice.VoiceImageryPickerDialog
  import com.osfans.trime.ime.window.BoardWindow
  import com.osfans.trime.ime.window.BoardWindowManager
 +import com.osfans.trime.link.AsrkbSpeechClient
@@ -1069,7 +1175,7 @@ index 4860737..f6ee70a 100644
  import com.osfans.trime.ui.main.ClipEditActivity
  import com.osfans.trime.util.AppUtils
  import kotlinx.coroutines.Job
-@@ -68,6 +70,7 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -68,6 +73,7 @@ class InputBarDelegate : InputBroadcastReceiver {
      private val commonKeyboardActionListener: CommonKeyboardActionListener by di.instance()
      private val candidate: CompactCandidateDelegate by di.instance()
      private val rime: RimeSession by di.instance()
@@ -1077,7 +1183,7 @@ index 4860737..f6ee70a 100644
  
      val themedHeight = theme.generalStyle.run { candidateViewHeight + commentHeight }
  
-@@ -79,6 +82,25 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -79,6 +85,27 @@ class InputBarDelegate : InputBroadcastReceiver {
  
      private val clipboardSuggestionTimeout by prefs.clipboard.clipboardSuggestionTimeout
  
@@ -1098,15 +1204,34 @@ index 4860737..f6ee70a 100644
 +
 +    private val bibiToolbarMicButton by prefs.general.bibiToolbarMicButton
 +
++    private val floatingKeyboardToolbarButton by prefs.keyboard.floatingKeyboardToolbarButton
++
 +    private var asrkbHoldingChangedListener: ((Boolean) -> Unit)? = null
 +
      private var clipboardTimeoutJob: Job? = null
  
      private var isClipboardFresh: Boolean = false
-@@ -156,6 +178,33 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -112,6 +139,8 @@ class InputBarDelegate : InputBroadcastReceiver {
+     }
+ 
+     private fun evalAlwaysUiState() {
++        alwaysUi.voiceImageryButton.visibility =
++            if (VoiceImagery.toolbarButtonEnabled()) View.VISIBLE else View.GONE
+         val newState =
+             when {
+                 isClipboardFresh -> AlwaysUi.State.Clipboard
+@@ -156,6 +185,41 @@ class InputBarDelegate : InputBroadcastReceiver {
              clipboardUi.dismiss.setOnClickListener {
                  dismissClipboardSuggestion()
              }
++            floatingKeyboardButton.apply {
++                visibility = if (floatingKeyboardToolbarButton) View.VISIBLE else View.GONE
++                setOnClickListener { FloatingKeyboard.toggle() }
++            }
++            voiceImageryButton.apply {
++                visibility = if (VoiceImagery.toolbarButtonEnabled()) View.VISIBLE else View.GONE
++                setOnClickListener { service.showDialog(VoiceImageryPickerDialog.build(context)) }
++            }
 +            asrkbVoiceButton.apply {
 +                if (bibiAidlVoiceEnabled && bibiToolbarMicButton) {
 +                    visibility = View.VISIBLE
@@ -1137,7 +1262,7 @@ index 4860737..f6ee70a 100644
          }
      }
  
-@@ -259,6 +308,20 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -259,6 +323,20 @@ class InputBarDelegate : InputBroadcastReceiver {
              evalAlwaysUiState()
              ClipboardHelper.addOnUpdateListener(onClipboardUpdateListener)
              syncToolbarOptionStates()
@@ -1158,7 +1283,7 @@ index 4860737..f6ee70a 100644
          }
      }
  
-@@ -357,4 +420,13 @@ class InputBarDelegate : InputBroadcastReceiver {
+@@ -357,4 +435,13 @@ class InputBarDelegate : InputBroadcastReceiver {
      override fun onRimeOptionUpdated(value: RimeMessage.OptionMessage.Data) {
          alwaysUi.updateButtonsStyle(value.option, value.value)
      }
@@ -1173,7 +1298,7 @@ index 4860737..f6ee70a 100644
 +    }
  }
 diff --git a/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt b/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
-index e81e517..37ea0d3 100644
+index e81e517..744d8c7 100644
 --- a/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/bar/ui/AlwaysUi.kt
 @@ -6,6 +6,7 @@
@@ -1184,7 +1309,7 @@ index e81e517..37ea0d3 100644
  import android.widget.ViewAnimator
  import androidx.annotation.DrawableRes
  import androidx.constraintlayout.widget.ConstraintLayout
-@@ -68,6 +69,10 @@ class AlwaysUi(
+@@ -68,6 +69,23 @@ class AlwaysUi(
      val inlineSuggestionsUi = InlineSuggestionsUi(ctx)
  
      val hideKeyboardButton = ToolButton(ctx, R.drawable.ic_baseline_arrow_drop_down_24)
@@ -1192,10 +1317,23 @@ index e81e517..37ea0d3 100644
 +        ToolButton(ctx, R.drawable.ic_baseline_mic_24).apply {
 +            visibility = View.GONE
 +        }
++
++    /** 悬浮键盘开关按钮（是否显示由设置项控制） */
++    val floatingKeyboardButton =
++        ToolButton(ctx, R.drawable.ic_baseline_drag_handle_24).apply {
++            visibility = View.GONE
++        }
++
++    /** 声情意象快捷切换按钮（是否显示由设置项控制） */
++    val voiceImageryButton =
++        ToolButton(ctx, R.drawable.ic_dahi_music_note_24).apply {
++            visibility = View.GONE
++        }
++
      private val rightMostButton =
          ViewAnimator(ctx).apply {
              add(hideKeyboardButton, lParams(matchParent, matchParent))
-@@ -104,11 +109,18 @@ class AlwaysUi(
+@@ -104,11 +122,32 @@ class AlwaysUi(
                  centerVertically()
              },
          )
@@ -1206,12 +1344,26 @@ index e81e517..37ea0d3 100644
 +                centerVertically()
 +            },
 +        )
++        add(
++            floatingKeyboardButton,
++            lParams(rightWidth, rightHeight) {
++                before(asrkbVoiceButton)
++                centerVertically()
++            },
++        )
++        add(
++            voiceImageryButton,
++            lParams(rightWidth, rightHeight) {
++                before(floatingKeyboardButton)
++                centerVertically()
++            },
++        )
          add(
              animator,
              lParams(matchConstraints, matchParent) {
                  after(leftMostButton)
 -                before(rightMostButton)
-+                before(asrkbVoiceButton)
++                before(voiceImageryButton)
                  endOfParent()
                  centerVertically()
              },
@@ -1450,10 +1602,10 @@ index 0000000..2eb46c0
 +}
 diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchOverlay.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchOverlay.kt
 new file mode 100755
-index 0000000..103ccc2
+index 0000000..5fd49e9
 --- /dev/null
 +++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardSearchOverlay.kt
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,242 @@
 +/*
 + * SPDX-FileCopyrightText: 2026 Rime community
 + *
@@ -1463,6 +1615,7 @@ index 0000000..103ccc2
 +package com.osfans.trime.ime.clipboard
 +
 +import android.content.Context
++import android.graphics.Color
 +import android.graphics.drawable.Drawable
 +import android.graphics.drawable.GradientDrawable
 +import android.text.TextUtils
@@ -1492,10 +1645,10 @@ index 0000000..103ccc2
 + * 剪贴板 / 收藏夹的搜索浮层。
 + *
 + * 背景：打开剪贴板时，同文会把「键盘窗口」整体替换掉（见 [BoardWindowManager.attachWindow]），
-+ * 因此剪贴板窗口里的 EditText 根本收不到键盘——键盘已不在屏幕上。
++ * 因此剪贴板窗口里的输入框根本收不到键盘——键盘已不在屏幕上。
 + *
 + * 本浮层在「键盘已重新显示」的前提下，贴在键盘上方：
-+ * 用户用同文键盘输入，提交的文本 / 退格经由 [ClipboardSearchBridge] 路由进来，
++ * 用户用同文键盘输入，纯文本 / 退格经由 [ClipboardSearchBridge] 路由进来，
 + * 实时过滤剪贴板与收藏夹条目，点条目即上屏。
 + */
 +class ClipboardSearchOverlay(
@@ -1510,8 +1663,26 @@ index 0000000..103ccc2
 +
 +    private val barSize = theme.generalStyle.candidateViewHeight + theme.generalStyle.commentHeight
 +
++    /** 顶栏高度：在主题栏高的基础上放大，并保证不小于 52dp，方便点击。 */
++    private val barHeight = maxOf(dp(52), (barSize * 1.6f * density).toInt())
++
 +    private val textColor = ColorManager.getColor("key_text_color")
 +    private val symbolColor = ColorManager.getColor("key_symbol_color")
++
++    private fun isDark(color: Int): Boolean =
++        0.299 * Color.red(color) + 0.587 * Color.green(color) + 0.114 * Color.blue(color) < 140
++
++    /** 主题背景无法解析时的兜底：按文字颜色自动选深/浅背景，保证对比度。 */
++    private val fallbackBackground: Int =
++        if (isDark(textColor)) 0xFF303030.toInt() else 0xFFF7F7F7.toInt()
++
++    /** 浮层背景：优先用主题按键背景（与条目一致），失败则用兜底色。 */
++    private val rootBackground: Drawable =
++        ColorManager.getDecorDrawable("key_back_color", "key_border_color", dp(1), dp(8).toFloat())
++            ?: GradientDrawable().apply {
++                setColor(fallbackBackground)
++                cornerRadius = dp(8).toFloat()
++            }
 +
 +    /** 浮层高度：约占屏幕 42%，保证不占满整屏、又能看到足够条目。 */
 +    val heightPx: Int = (ctx.resources.displayMetrics.heightPixels * 0.42f).toInt()
@@ -1523,12 +1694,13 @@ index 0000000..103ccc2
 +        TextView(ctx).apply {
 +            isSingleLine = true
 +            ellipsize = TextUtils.TruncateAt.END
-+            setTextSize(TypedValue.COMPLEX_UNIT_PX, theme.generalStyle.candidateTextSize)
++            // 用固定且足够大的字号（20sp），确保在浅色/深色主题下都清晰可见
++            setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
 +            setTextColor(this@ClipboardSearchOverlay.textColor)
 +            setHintTextColor(symbolColor)
 +            hint = ctx.getString(R.string.dahi_clipboard_search_hint)
 +            gravity = Gravity.CENTER_VERTICAL
-+            setPadding(dp(8), 0, dp(8), 0)
++            setPadding(dp(10), 0, dp(10), 0)
 +        }
 +
 +    private val clearButton =
@@ -1536,7 +1708,7 @@ index 0000000..103ccc2
 +            setImageResource(R.drawable.ic_outline_cancel_24)
 +            setColorFilter(symbolColor)
 +            scaleType = ImageView.ScaleType.CENTER_INSIDE
-+            setPadding(dp(10), dp(10), dp(10), dp(10))
++            contentDescription = "clear"
 +            visibility = View.GONE
 +            setOnClickListener {
 +                query = ""
@@ -1549,7 +1721,7 @@ index 0000000..103ccc2
 +            setImageResource(R.drawable.ic_baseline_arrow_back_24)
 +            setColorFilter(symbolColor)
 +            scaleType = ImageView.ScaleType.CENTER_INSIDE
-+            setPadding(dp(10), dp(10), dp(10), dp(10))
++            contentDescription = "back"
 +            setOnClickListener { exit() }
 +        }
 +
@@ -1558,7 +1730,6 @@ index 0000000..103ccc2
 +            setImageResource(R.drawable.ic_baseline_search_24)
 +            setColorFilter(symbolColor)
 +            scaleType = ImageView.ScaleType.CENTER_INSIDE
-+            setPadding(dp(10), dp(10), dp(10), dp(10))
 +        }
 +
 +    private class ResultHolder(
@@ -1599,29 +1770,23 @@ index 0000000..103ccc2
 +            adapter = resultAdapter
 +            isVerticalScrollBarEnabled = true
 +            clipToPadding = false
-+            setPadding(dp(4), dp(4), dp(4), dp(4))
-+        }
-+
-+    private val background: Drawable =
-+        GradientDrawable().apply {
-+            setColor(runCatching { ColorManager.getColor("key_back_color") }.getOrDefault(0xFF2B2B2B.toInt()))
-+            cornerRadius = dp(8).toFloat()
++            setPadding(dp(6), dp(6), dp(6), dp(6))
 +        }
 +
 +    val root: View =
 +        LinearLayout(ctx).apply {
 +            orientation = LinearLayout.VERTICAL
-+            setBackground(background)
++            setBackground(rootBackground)
 +            addView(
 +                LinearLayout(ctx).apply {
 +                    orientation = LinearLayout.HORIZONTAL
 +                    gravity = Gravity.CENTER_VERTICAL
-+                    addView(searchIcon, LinearLayout.LayoutParams(dp(barSize), dp(barSize)))
-+                    addView(queryView, LinearLayout.LayoutParams(0, dp(barSize), 1f))
-+                    addView(clearButton, LinearLayout.LayoutParams(dp(barSize), dp(barSize)))
-+                    addView(backButton, LinearLayout.LayoutParams(dp(barSize), dp(barSize)))
++                    addView(searchIcon, LinearLayout.LayoutParams(dp(barSize), barHeight))
++                    addView(queryView, LinearLayout.LayoutParams(0, barHeight, 1f))
++                    addView(clearButton, LinearLayout.LayoutParams(barHeight, barHeight))
++                    addView(backButton, LinearLayout.LayoutParams(barHeight, barHeight))
 +                },
-+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(barSize)),
++                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barHeight),
 +            )
 +            addView(
 +                listView,
@@ -1789,7 +1954,7 @@ index df6e47d..2523b5e 100644
 +    }
  }
 diff --git a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
-index 3e396c2..72e2b97 100644
+index 3e396c2..5cfe0e0 100644
 --- a/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/clipboard/ClipboardWindow.kt
 @@ -9,9 +9,12 @@ import android.app.AlertDialog
@@ -1952,8 +2117,13 @@ index 3e396c2..72e2b97 100644
      private fun promptDeleteAll(action: suspend () -> Unit) {
          val dialog = AlertDialog.Builder(context)
              .setTitle(R.string.delete_all)
-@@ -215,12 +306,12 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+@@ -213,14 +304,17 @@ class ClipboardWindow(private val initialTab: Int = 0) : BoardWindow.BarBoardWin
+     }
+ 
      override fun onAttached() {
++        // 打开剪贴板时清理可能残留的搜索浮层
++        service.hideBottomOverlay()
++        ClipboardSearchBridge.reset()
          clipboardLayout.viewPager.setCurrentItem(initialTab, false)
          clipboardBeansSubmitJob = service.lifecycleScope.launch {
 -            clipboardBeansPager.flow.collect {
@@ -1967,14 +2137,455 @@ index 3e396c2..72e2b97 100644
                  collectionBeansAdapter.submitData(it)
              }
          }
+diff --git a/app/src/main/java/com/osfans/trime/ime/core/FloatingKeyboard.kt b/app/src/main/java/com/osfans/trime/ime/core/FloatingKeyboard.kt
+new file mode 100755
+index 0000000..ea9aa75
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/ime/core/FloatingKeyboard.kt
+@@ -0,0 +1,67 @@
++/*
++ * SPDX-FileCopyrightText: 2015 - 2026 Rime community
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.ime.core
++
++import android.content.Context
++import android.content.SharedPreferences
++import com.osfans.trime.util.appContext
++
++/**
++ * 悬浮键盘的共享状态（开关 + 位置 / 缩放）。
++ *
++ * 独立于 [com.osfans.trime.data.prefs.AppPrefs]，便于设置界面、输入法工具栏、
++ * 三点菜单窗口与主题预设键（`command: floating_keyboard`）共同读写同一状态。
++ */
++object FloatingKeyboard {
++    const val PREFS_NAME = "dahi_floating_keyboard"
++    const val KEY_ENABLED = "enabled"
++    private const val KEY_X = "x"
++    private const val KEY_Y = "y"
++    private const val KEY_SCALE = "scale"
++
++    const val DEFAULT_SCALE = 0.9f
++    const val MIN_SCALE = 0.5f
++    const val SCALE_STEP = 0.1f
++
++    private val prefs: SharedPreferences by lazy {
++        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
++    }
++
++    fun isEnabled(): Boolean = prefs.getBoolean(KEY_ENABLED, false)
++
++    fun setEnabled(value: Boolean) {
++        prefs.edit().putBoolean(KEY_ENABLED, value).apply()
++    }
++
++    fun toggle() {
++        setEnabled(!isEnabled())
++    }
++
++    fun getScale(): Float = prefs.getFloat(KEY_SCALE, DEFAULT_SCALE).coerceIn(MIN_SCALE, 1f)
++
++    fun setScale(value: Float) {
++        prefs.edit().putFloat(KEY_SCALE, value.coerceIn(MIN_SCALE, 1f)).apply()
++    }
++
++    fun getX(): Float = prefs.getFloat(KEY_X, 0f)
++
++    fun getY(): Float = prefs.getFloat(KEY_Y, 0f)
++
++    fun setPosition(
++        x: Float,
++        y: Float,
++    ) {
++        prefs.edit().putFloat(KEY_X, x).putFloat(KEY_Y, y).apply()
++    }
++
++    fun registerListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
++        prefs.registerOnSharedPreferenceChangeListener(listener)
++    }
++
++    fun unregisterListener(listener: SharedPreferences.OnSharedPreferenceChangeListener) {
++        prefs.unregisterOnSharedPreferenceChangeListener(listener)
++    }
++}
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-index 1edb256..6a8ccba 100644
+index 1edb256..f6e8c72 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/InputView.kt
-@@ -234,6 +234,32 @@ class InputView(
-         )
-     }
+@@ -6,21 +6,37 @@
+ package com.osfans.trime.ime.core
  
+ import android.annotation.SuppressLint
++import android.content.Context
++import android.content.SharedPreferences
++import android.content.res.Configuration
++import android.graphics.Color
++import android.graphics.Outline
++import android.graphics.drawable.GradientDrawable
+ import android.os.Build
++import android.util.TypedValue
++import android.view.Gravity
++import android.view.MotionEvent
+ import android.view.View
++import android.view.ViewGroup
++import android.view.ViewOutlineProvider
+ import android.view.WindowInsets
+ import android.view.inputmethod.EditorInfo
+ import android.view.inputmethod.InlineSuggestionsResponse
+ import android.widget.ImageView
++import android.widget.LinearLayout
++import android.widget.TextView
+ import androidx.annotation.RequiresApi
++import androidx.constraintlayout.widget.ConstraintLayout
+ import androidx.core.content.ContextCompat
+ import androidx.core.view.ViewCompat
+ import androidx.core.view.updateLayoutParams
+ import androidx.lifecycle.lifecycleScope
++import com.osfans.trime.R
+ import com.osfans.trime.core.CompositionProto
+ import com.osfans.trime.core.RimeMessage
+ import com.osfans.trime.daemon.RimeSession
+ import com.osfans.trime.data.prefs.AppPrefs
++import com.osfans.trime.data.prefs.PreferenceDelegate
+ import com.osfans.trime.data.theme.ColorManager
+ import com.osfans.trime.data.theme.Theme
+ import com.osfans.trime.ime.bar.InputBarDelegate
+@@ -139,6 +155,65 @@ class InputView(
+ 
+     val keyboardView: View
+ 
++    // ============================================================
++    //  悬浮键盘（dahi）：键盘可自由拖动、缩放，并作为可触摸区域浮动在应用之上
++    // ============================================================
++    private val keyboardTransparencyPref = AppPrefs.defaultInstance().keyboard.keyboardTransparency
++    private var floatingActive = false
++    private var floatingScale = FloatingKeyboard.DEFAULT_SCALE
++
++    /** 悬浮开关变化（工具栏按钮/菜单/预设键）后实时生效，无需重建视图 */
++    private val floatingStateListener =
++        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
++            if (key == FloatingKeyboard.KEY_ENABLED) post { applyFloatingState() }
++        }
++
++    /** 键盘透明度实时生效 */
++    private val transparencyListener =
++        PreferenceDelegate.OnChangeListener<Int> { _, _ -> post { applyKeyboardAlpha() } }
++
++    /** 把手按钮的底色/描边：半透明叠色，保证在任意主题下都能看清按钮边界与间距 */
++    private val floatingButtonBackColor: Int =
++        if (isNightMode()) 0x33FFFFFF else 0x22000000
++    private val floatingButtonStrokeColor: Int =
++        if (isNightMode()) 0x66FFFFFF else 0x66000000
++
++    private val floatingHandleTextColor: Int =
++        safeThemeColor(
++            "hilited_candidate_text_color",
++            if (isNightMode()) 0xFFFFFFFF.toInt() else 0xFF000000.toInt(),
++        )
++
++    private val floatingHandle: LinearLayout =
++        LinearLayout(context).apply {
++            id = View.generateViewId()
++            orientation = LinearLayout.HORIZONTAL
++            gravity = Gravity.CENTER_VERTICAL
++            visibility = View.GONE
++            setPadding(dp(12), 0, dp(2), 0)
++            background =
++                GradientDrawable().apply {
++                    val r = dp(FLOATING_CORNER_DP).toFloat()
++                    cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
++                    setColor(
++                        safeThemeColor(
++                            "hilited_candidate_back_color",
++                            if (isNightMode()) 0xFF3A3A3A.toInt() else 0xFFDDDDDD.toInt(),
++                        ),
++                    )
++                }
++        }
++
++    private val floatingOutline =
++        object : ViewOutlineProvider() {
++            override fun getOutline(
++                view: View,
++                outline: Outline,
++            ) {
++                outline.setRoundRect(0, 0, view.width, view.height, dp(FLOATING_CORNER_DP).toFloat())
++            }
++        }
++
+     init {
+         // MUST call before any operation
+         inputDepMgr.start()
+@@ -159,6 +234,13 @@ class InputView(
+                         centerInParent()
+                     },
+                 )
++                add(
++                    floatingHandle,
++                    lParams(matchParent, dp(FLOATING_HANDLE_HEIGHT_DP)) {
++                        topOfParent()
++                        centerHorizontally()
++                    },
++                )
+                 add(
+                     inputBar.view,
+                     lParams(matchParent, dp(inputBar.themedHeight)) {
+@@ -232,6 +314,288 @@ class InputView(
+                 centerInParent()
+             },
+         )
++
++        setupFloatingHandle()
++        post { applyFloatingState() }
++    }
++
++    override fun onSizeChanged(
++        w: Int,
++        h: Int,
++        oldw: Int,
++        oldh: Int,
++    ) {
++        super.onSizeChanged(w, h, oldw, oldh)
++        if (floatingActive) post { applyFloatingState() }
++    }
++
++    // ============================================================
++    //  悬浮键盘实现
++    // ============================================================
++
++    private fun isNightMode(): Boolean = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
++        Configuration.UI_MODE_NIGHT_YES
++
++    private fun safeThemeColor(
++        key: String,
++        fallback: Int,
++    ): Int = runCatching { ColorManager.getColor(key) }.getOrDefault(0).let {
++        if (it == 0 || it == Color.TRANSPARENT) fallback else it
++    }
++
++    /**
++     * 把手上的操作按钮：统一做成带描边的长条（pill）按钮，并靠 [FLOATING_BUTTON_GAP_DP] 拉开间距，
++     * 避免键盘缩小后三个按钮挤在一起导致误触。
++     */
++    private fun makeHandleButton(
++        labelRes: Int,
++        minWidthDp: Int,
++        onClick: () -> Unit,
++    ): TextView = TextView(context).apply {
++        text = context.getString(labelRes)
++        setTextColor(floatingHandleTextColor)
++        setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
++        gravity = Gravity.CENTER
++        minWidth = dp(minWidthDp)
++        setPadding(dp(10), 0, dp(10), 0)
++        background =
++            GradientDrawable().apply {
++                cornerRadius = dp(FLOATING_BUTTON_CORNER_DP).toFloat()
++                setColor(floatingButtonBackColor)
++                setStroke(dp(1), floatingButtonStrokeColor)
++            }
++        layoutParams =
++            LinearLayout.LayoutParams(
++                ViewGroup.LayoutParams.WRAP_CONTENT,
++                ViewGroup.LayoutParams.MATCH_PARENT,
++            ).apply {
++                marginStart = dp(FLOATING_BUTTON_GAP_DP)
++                topMargin = dp(5)
++                bottomMargin = dp(5)
++            }
++        isClickable = true
++        setOnClickListener { onClick() }
++    }
++
++    private fun setupFloatingHandle() {
++        val grip =
++            TextView(context).apply {
++                text = context.getString(R.string.dahi_floating_keyboard_handle)
++                setTextColor(floatingHandleTextColor)
++                setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
++                gravity = Gravity.CENTER_VERTICAL
++                isSingleLine = true
++                ellipsize = android.text.TextUtils.TruncateAt.END
++                layoutParams =
++                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f)
++            }
++        attachFloatingDrag(grip)
++        floatingHandle.addView(grip)
++        floatingHandle.addView(
++            makeHandleButton(R.string.dahi_floating_keyboard_shrink, FLOATING_BUTTON_WIDTH_DP) {
++                changeFloatingScale(-SCALE_STEP)
++            },
++        )
++        floatingHandle.addView(
++            makeHandleButton(R.string.dahi_floating_keyboard_grow, FLOATING_BUTTON_WIDTH_DP) {
++                changeFloatingScale(SCALE_STEP)
++            },
++        )
++        floatingHandle.addView(
++            makeHandleButton(R.string.dahi_floating_keyboard_dock, FLOATING_BUTTON_DOCK_WIDTH_DP) {
++                dockFloating()
++            },
++        )
++    }
++
++    @SuppressLint("ClickableViewAccessibility")
++    private fun attachFloatingDrag(view: View) {
++        var downX = 0f
++        var downY = 0f
++        var startX = 0f
++        var startY = 0f
++        view.setOnTouchListener { _, event ->
++            when (event.actionMasked) {
++                MotionEvent.ACTION_DOWN -> {
++                    downX = event.rawX
++                    downY = event.rawY
++                    startX = keyboardView.translationX
++                    startY = keyboardView.translationY
++                    true
++                }
++                MotionEvent.ACTION_MOVE -> {
++                    keyboardView.translationX = startX + (event.rawX - downX)
++                    keyboardView.translationY = startY + (event.rawY - downY)
++                    clampFloating()
++                    applyFloatingVisuals()
++                    // 触发一次遍历，使框架重新计算可触摸区
++                    requestLayout()
++                    true
++                }
++                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
++                    FloatingKeyboard.setPosition(keyboardView.translationX, keyboardView.translationY)
++                    true
++                }
++                else -> false
++            }
++        }
++    }
++
++    private fun changeFloatingScale(delta: Float) {
++        floatingScale = (FloatingKeyboard.getScale() + delta).coerceIn(FloatingKeyboard.MIN_SCALE, 1f)
++        FloatingKeyboard.setScale(floatingScale)
++        clampFloating()
++        applyFloatingVisuals()
++        requestLayout()
++    }
++
++    private fun dockFloating() {
++        FloatingKeyboard.setPosition(0f, 0f)
++        FloatingKeyboard.setEnabled(false)
++    }
++
++    /** 键盘透明度（关键字：不影响既有默认值，默认 100%） */
++    private fun applyKeyboardAlpha() {
++        keyboardView.alpha = (keyboardTransparencyPref.getValue() / 100f).coerceIn(0.1f, 1f)
++    }
++
++    /** 应用缩放/位移与预编辑跟随（不含可见性与约束切换）。 */
++    private fun applyFloatingVisuals() {
++        if (!floatingActive) {
++            keyboardView.translationX = 0f
++            keyboardView.translationY = 0f
++            keyboardView.scaleX = 1f
++            keyboardView.scaleY = 1f
++            preedit.ui.root.translationY = 0f
++            return
++        }
++        if (keyboardView.width > 0 && keyboardView.height > 0) {
++            keyboardView.pivotX = keyboardView.width / 2f
++            keyboardView.pivotY = keyboardView.height.toFloat()
++        }
++        keyboardView.scaleX = floatingScale
++        keyboardView.scaleY = floatingScale
++        preedit.ui.root.translationY =
++            keyboardView.translationY + keyboardView.height * (1f - floatingScale)
++    }
++
++    /** 把键盘限制在屏幕内：水平居中为基准，垂直底部为基准（只能向上拖）。 */
++    private fun clampFloating() {
++        if (!floatingActive) return
++        val pw = width.toFloat()
++        val ph = height.toFloat()
++        val kw = keyboardView.width.toFloat()
++        val kh = keyboardView.height.toFloat()
++        if (pw <= 0f || ph <= 0f || kw <= 0f || kh <= 0f) return
++        val maxTx = (kw / 2f) * (1f - floatingScale)
++        keyboardView.translationX = keyboardView.translationX.coerceIn(-maxTx, maxTx)
++        val minTy = (kh * floatingScale - ph).coerceAtMost(0f)
++        keyboardView.translationY = keyboardView.translationY.coerceIn(minTy, 0f)
++    }
++
++    private fun applyFloatingState() {
++        val enabled = runCatching { FloatingKeyboard.isEnabled() }.getOrDefault(false)
++        floatingActive = enabled
++        if (enabled) {
++            floatingScale = FloatingKeyboard.getScale()
++            keyboardView.translationX = FloatingKeyboard.getX()
++            keyboardView.translationY = FloatingKeyboard.getY()
++            floatingHandle.visibility = View.VISIBLE
++            inputBar.view.updateLayoutParams<LayoutParams> {
++                topToTop = ConstraintLayout.LayoutParams.UNSET
++                topToBottom = floatingHandle.id
++            }
++            keyboardView.elevation = dp(FLOATING_ELEVATION_DP).toFloat()
++            keyboardView.outlineProvider = floatingOutline
++            keyboardView.clipToOutline = true
++            keyboardView.background =
++                GradientDrawable().apply {
++                    cornerRadius = dp(FLOATING_CORNER_DP).toFloat()
++                    setColor(
++                        safeThemeColor(
++                            "keyboard_back_color",
++                            if (isNightMode()) 0xFF202020.toInt() else 0xFFFFFFFF.toInt(),
++                        ),
++                    )
++                }
++        } else {
++            floatingHandle.visibility = View.GONE
++            inputBar.view.updateLayoutParams<LayoutParams> {
++                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
++                topToBottom = ConstraintLayout.LayoutParams.UNSET
++            }
++            keyboardView.elevation = 0f
++            keyboardView.clipToOutline = false
++            keyboardView.outlineProvider = null
++            keyboardView.background = null
++        }
++        clampFloating()
++        applyFloatingVisuals()
++        applyKeyboardAlpha()
++        requestLayout()
++    }
++
++    /**
++     * 悬浮键盘在窗口坐标系中的矩形（含搜索浮层），供 onComputeInsets 限定可触摸区。
++     * 返回 null 表示当前不是悬浮状态。
++     */
++    fun floatingRectInWindow(): IntArray? {
++        if (!floatingActive) return null
++        val pw = width.toFloat()
++        val ph = height.toFloat()
++        val kw = keyboardView.width.toFloat()
++        val kh = keyboardView.height.toFloat()
++        if (pw <= 0f || ph <= 0f || kw <= 0f || kh <= 0f) return null
++        val halfWidth = kw / 2f
++        var left = keyboardView.translationX + halfWidth * (1f - floatingScale)
++        var top = keyboardView.translationY + ph - kh * floatingScale
++        var right = left + kw * floatingScale
++        var bottom = top + kh * floatingScale
++        bottomOverlay?.let { overlay ->
++            if (overlay.width > 0 && overlay.height > 0) {
++                val loc = IntArray(2)
++                overlay.getLocationInWindow(loc)
++                left = minOf(left, loc[0].toFloat())
++                top = minOf(top, loc[1].toFloat())
++                right = maxOf(right, (loc[0] + overlay.width).toFloat())
++                bottom = maxOf(bottom, (loc[1] + overlay.height).toFloat())
++            }
++        }
++        return intArrayOf(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
++    }
++
 +    private var bottomOverlay: View? = null
 +
 +    /**
@@ -2001,14 +2612,52 @@ index 1edb256..6a8ccba 100644
 +        bottomOverlay = null
 +    }
 +
++    /** 浮层在窗口中的顶部 Y 坐标；无浮层时返回 null。 */
++    fun bottomOverlayTopInWindow(): Int? {
++        val overlay = bottomOverlay ?: return null
++        val loc = IntArray(2)
++        overlay.getLocationInWindow(loc)
++        return loc[1]
+     }
+ 
      private fun updateKeyboardSize() {
-         bottomPaddingSpace.updateLayoutParams {
-             height = keyboardBottomPaddingPx
+@@ -336,7 +700,15 @@ class InputView(
+     @RequiresApi(Build.VERSION_CODES.R)
+     fun handleInlineSuggestions(response: InlineSuggestionsResponse): Boolean = inputBar.handleInlineSuggestions(response)
+ 
++    override fun onAttachedToWindow() {
++        super.onAttachedToWindow()
++        FloatingKeyboard.registerListener(floatingStateListener)
++        keyboardTransparencyPref.registerOnChangeListener(transparencyListener)
++    }
++
+     override fun onDetachedFromWindow() {
++        FloatingKeyboard.unregisterListener(floatingStateListener)
++        keyboardTransparencyPref.unregisterOnChangeListener(transparencyListener)
+         ViewCompat.setOnApplyWindowInsetsListener(this, null)
+         // cancel the notification job and clear all broadcast receivers,
+         // implies that InputView should not be attached again after detached.
+@@ -345,4 +717,15 @@ class InputView(
+         inputDepMgr.stop()
+         super.onDetachedFromWindow()
+     }
++
++    companion object {
++        private const val SCALE_STEP = 0.1f
++        private const val FLOATING_HANDLE_HEIGHT_DP = 36
++        private const val FLOATING_CORNER_DP = 14
++        private const val FLOATING_BUTTON_CORNER_DP = 9
++        private const val FLOATING_BUTTON_GAP_DP = 8
++        private const val FLOATING_BUTTON_WIDTH_DP = 56
++        private const val FLOATING_BUTTON_DOCK_WIDTH_DP = 66
++        private const val FLOATING_ELEVATION_DP = 10
++    }
+ }
 diff --git a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
-index 6bba2fa..a8aca91 100644
+index 6bba2fa..1f0a716 100644
 --- a/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/core/TrimeInputMethodService.kt
-@@ -47,8 +47,10 @@ import com.osfans.trime.data.prefs.PreferenceDelegateProvider
+@@ -47,14 +47,17 @@ import com.osfans.trime.data.prefs.PreferenceDelegateProvider
  import com.osfans.trime.data.theme.ColorManager
  import com.osfans.trime.data.theme.Theme
  import com.osfans.trime.data.theme.ThemeManager
@@ -2019,7 +2668,22 @@ index 6bba2fa..a8aca91 100644
  import com.osfans.trime.receiver.RimeIntentReceiver
  import com.osfans.trime.util.any
  import com.osfans.trime.util.findSectionFrom
-@@ -205,7 +207,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+ import com.osfans.trime.util.forceShowSelf
+ import com.osfans.trime.util.monitorCursorAnchor
+ import com.osfans.trime.util.styledFloat
++import com.osfans.trime.util.virtualKeyCharacterMap
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.CoroutineStart
+ import kotlinx.coroutines.Job
+@@ -101,6 +104,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+         prefs.keyboard.hideKeySymbol,
+         prefs.keyboard.hideKeyHint,
+         prefs.keyboard.hideInputBar,
++        prefs.keyboard.floatingKeyboardToolbarButton,
+         prefs.advanced.ignoreSystemGestureInsets,
+     )
+ 
+@@ -205,7 +209,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          when (it) {
              is RimeMessage.CommitTextMessage -> {
                  if (!it.data.text.isNullOrEmpty()) {
@@ -2031,7 +2695,24 @@ index 6bba2fa..a8aca91 100644
                  }
              }
              is RimeMessage.InlinePreeditMessage -> {
-@@ -218,6 +223,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -213,11 +220,26 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+             }
+             is RimeMessage.KeyMessage ->
+                 it.data.let msg@{
++                    if (ClipboardSearchBridge.active && !it.modifiers.release) {
++                        val kc = it.value.keyCode
++                        if (kc != KeyEvent.KEYCODE_UNKNOWN &&
++                            runCatching { virtualKeyCharacterMap.isPrintingKey(kc) }.getOrDefault(false)
++                        ) {
++                            val c = virtualKeyCharacterMap.get(kc, it.modifiers.metaState)
++                            if (c != 0) {
++                                ClipboardSearchBridge.acceptText(c.toChar().toString())
++                                return@msg
++                            }
++                        }
++                    }
+                     if (it.isVirtual) {
+                         when (it.value.value) {
                              RimeKeyMapping.RimeKey_Return -> handleReturnKey()
                              else -> {
                                  val keyCode = it.value.keyCode
@@ -2041,7 +2722,7 @@ index 6bba2fa..a8aca91 100644
                                  if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
                                      // recognized keyCode
                                      sendDownUpKeyEvent(
-@@ -243,6 +251,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -243,6 +265,9 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                          }
                      } else {
                          val keyCode = it.value.keyCode
@@ -2051,7 +2732,7 @@ index 6bba2fa..a8aca91 100644
                          if (keyCode != KeyEvent.KEYCODE_UNKNOWN) {
                              // recognized keyCode
                              val eventTime = SystemClock.uptimeMillis()
-@@ -301,6 +312,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -301,6 +326,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
      }
  
      override fun onDestroy() {
@@ -2059,7 +2740,7 @@ index 6bba2fa..a8aca91 100644
          InputFeedbackManager.destroy()
          inputView = null
          recreateInputViewPrefs.forEach {
-@@ -323,6 +335,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -323,6 +349,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                  return
              }
              if (!actionLabel.isNullOrEmpty() && actionId != EditorInfo.IME_ACTION_UNSPECIFIED) {
@@ -2067,7 +2748,7 @@ index 6bba2fa..a8aca91 100644
                  currentInputConnection.performEditorAction(actionId)
                  return
              }
-@@ -331,7 +344,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -331,7 +358,10 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
                  EditorInfo.IME_ACTION_NONE,
                  -> sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
  
@@ -2079,7 +2760,7 @@ index 6bba2fa..a8aca91 100644
              }
          }
      }
-@@ -428,6 +444,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -428,6 +458,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          cursorUpdateIndex += 1
          handleCursorUpdate(newSelStart, newSelEnd, candidatesStart, candidatesEnd, cursorUpdateIndex)
          inputView?.updateSelection(newSelStart, newSelEnd)
@@ -2087,7 +2768,58 @@ index 6bba2fa..a8aca91 100644
      }
  
      private fun handleCursorUpdate(
-@@ -513,6 +530,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -460,6 +491,50 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+ 
+     override fun onComputeInsets(outInsets: Insets) {
+         if (inputDeviceManager.useVirtualKeyboard) {
++            // 悬浮键盘：不占用应用内容区（避免应用被压成 0 高度而黑屏/闪退），
++            // 键盘仅作为浮层叠加在应用之上；可触摸区精确限定为键盘（含浮层）矩形，
++            // 其余区域的点击照常穿透到下层应用。
++            val floatingRect = inputView?.floatingRectInWindow()
++            if (floatingRect != null) {
++                // 候选视图（如“始终显示候选窗口”模式）若可见，一并纳入可触摸区
++                candidatesView
++                    ?.takeIf { it.visibility == View.VISIBLE }
++                    ?.let { cv ->
++                        val cvLoc = IntArray(2)
++                        cv.getLocationInWindow(cvLoc)
++                        floatingRect[0] = minOf(floatingRect[0], cvLoc[0])
++                        floatingRect[1] = minOf(floatingRect[1], cvLoc[1])
++                        floatingRect[2] = maxOf(floatingRect[2], cvLoc[0] + cv.width)
++                        floatingRect[3] = maxOf(floatingRect[3], cvLoc[1] + cv.height)
++                    }
++                // 与“未使用虚拟键盘”时一致：内容上界取整屏，表示输入法不占应用内容区，
++                // 应用窗口保持原样（不会变成 0 高度）。可触摸区仍精确限定为键盘矩形。
++                val navBarHeight = decorView.findViewById<View>(android.R.id.navigationBarBackground)?.height ?: 0
++                val noContentInset = decorView.height - navBarHeight
++                outInsets.apply {
++                    contentTopInsets = noContentInset
++                    visibleTopInsets = noContentInset
++                    touchableInsets = Insets.TOUCHABLE_INSETS_REGION
++                    touchableRegion.set(
++                        floatingRect[0],
++                        floatingRect[1],
++                        floatingRect[2],
++                        floatingRect[3],
++                    )
++                }
++                return
++            }
++            val overlayTop = inputView?.bottomOverlayTopInWindow()
++            if (overlayTop != null && overlayTop > 0) {
++                // 搜索浮层显示时，把可触摸/内容上界抬到浮层顶部；
++                // 否则浮层区域不在输入法可触摸区内，点击会穿透到下层应用。
++                outInsets.apply {
++                    contentTopInsets = overlayTop
++                    visibleTopInsets = overlayTop
++                    touchableInsets = Insets.TOUCHABLE_INSETS_VISIBLE
++                }
++                return
++            }
+             inputView?.keyboardView?.getLocationInWindow(inputViewLocation)
+             outInsets.apply {
+                 contentTopInsets = inputViewLocation[1]
+@@ -513,6 +588,7 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          attribute: EditorInfo,
          restarting: Boolean,
      ) {
@@ -2095,7 +2827,16 @@ index 6bba2fa..a8aca91 100644
          composingText = ""
          Timber.d("onStartInput: restarting=$restarting")
          val isNullType = attribute.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_NULL
-@@ -579,9 +597,27 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+@@ -544,6 +620,8 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
+         restarting: Boolean,
+     ) {
+         Timber.d("onStartInputView: restarting=$restarting")
++        inputView?.hideBottomOverlay()
++        ClipboardSearchBridge.reset()
+         InputFeedbackManager.startInput()
+         postRimeJob {
+             updateRimeOption(this)
+@@ -579,10 +657,30 @@ open class TrimeInputMethodService : LifecycleInputMethodService() {
          postRimeJob {
              clearComposition()
          }
@@ -2121,8 +2862,31 @@ index 6bba2fa..a8aca91 100644
 +    }
 +
      fun commitText(text: String) {
++        // 搜索浮层激活时，提交的文本一律进搜索框，而不是上屏到宿主应用
++        if (ClipboardSearchBridge.acceptText(text)) return
          val ic = currentInputConnection ?: return
  
+         // when composing text equals commit content, finish composing text as-is
+diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
+index 421b007..225490f 100644
+--- a/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
++++ b/app/src/main/java/com/osfans/trime/ime/keyboard/CommonKeyboardActionListener.kt
+@@ -22,6 +22,7 @@ import com.osfans.trime.data.theme.ColorManager
+ import com.osfans.trime.data.theme.KeyActionManager
+ import com.osfans.trime.data.theme.ThemeManager
+ import com.osfans.trime.ime.clipboard.ClipboardWindow
++import com.osfans.trime.ime.core.FloatingKeyboard
+ import com.osfans.trime.ime.core.TrimeInputMethodService
+ import com.osfans.trime.ime.dependency.InputDependencyManager
+ import com.osfans.trime.ime.dialog.EnabledSchemaPickerDialog
+@@ -191,6 +192,7 @@ class CommonKeyboardActionListener {
+                     "select_candidate" -> handleSelectCandidate(arg)
+                     "switch_hide_key_symbol" -> switchHideKeySymbol()
+                     "switch_hide_key_hint" -> switchHideKeyHint()
++                    "floating_keyboard" -> FloatingKeyboard.toggle()
+                     else -> handleIntentAction(action.command, arg)
+                 }
+             }
 diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
 index 8723227..65f6808 100644
 --- a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyView.kt
@@ -2211,10 +2975,10 @@ index 8723227..65f6808 100644
          Timber.d("processKeyAction: label=${key.getLabel()}, code=${action.code}, type=$behavior")
  
 diff --git a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardView.kt b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardView.kt
-index 8c73597..838998d 100644
+index 8c73597..2d13168 100644
 --- a/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardView.kt
 +++ b/app/src/main/java/com/osfans/trime/ime/keyboard/KeyboardView.kt
-@@ -8,13 +8,25 @@ package com.osfans.trime.ime.keyboard
+@@ -8,13 +8,26 @@ package com.osfans.trime.ime.keyboard
  import android.annotation.SuppressLint
  import android.content.Context
  import android.graphics.Canvas
@@ -2232,7 +2996,8 @@ index 8c73597..838998d 100644
  import com.osfans.trime.ime.broadcast.EnterKeyDisplayDelegate
  import com.osfans.trime.ime.core.TrimeInputMethodService
  import com.osfans.trime.ime.popup.PopupDelegate
-+import com.osfans.trime.ime.voice.WaveformView
++import com.osfans.trime.ime.voice.VoiceImagery
++import com.osfans.trime.ime.voice.VoiceImageryView
 +import com.osfans.trime.link.AsrkbSpeechClient
 +import com.osfans.trime.link.VoiceOverlayUiBridge
 +import timber.log.Timber
@@ -2240,17 +3005,17 @@ index 8c73597..838998d 100644
  
  // TODO: move layout calculation responsibilities from Keyboard to KeyboardView using ConstraintLayout
  @SuppressLint("ViewConstructor")
-@@ -40,6 +52,9 @@ class KeyboardView(
+@@ -40,6 +53,9 @@ class KeyboardView(
      internal val hideKeySymbol: Boolean by AppPrefs.defaultInstance().keyboard.hideKeySymbol
      internal val hideKeyHint: Boolean by AppPrefs.defaultInstance().keyboard.hideKeyHint
  
 +    private var voiceOverlay: FrameLayout? = null
-+    private var voiceWave: WaveformView? = null
++    private var voiceWave: VoiceImageryView? = null
 +
      init {
          setWillNotDraw(false)
          buildKeyViews()
-@@ -100,6 +115,90 @@ class KeyboardView(
+@@ -100,6 +116,93 @@ class KeyboardView(
          get() = keyboard.mShiftKey?.isOn == true
  
      fun onDetach() {
@@ -2297,8 +3062,11 @@ index 8c73597..838998d 100644
 +                ?: Color.WHITE
 +
 +        val wave =
-+            WaveformView(context).apply {
++            VoiceImageryView(context).apply {
 +                setWaveformColor(lineColor)
++                setStyle(VoiceImagery.current().id)
++                setMaxAmplitude(VoiceImagery.maxAmplitude())
++                setSensitivity(VoiceImagery.sensitivity())
 +                visibility = View.INVISIBLE
 +            }
 +        overlay.addView(wave, FrameLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -2318,7 +3086,7 @@ index 8c73597..838998d 100644
 +
 +    internal fun hideVoiceOverlay() {
 +        val overlay = voiceOverlay ?: return
-+        runCatching { voiceWave?.stop() }.onFailure { Timber.w(it, "Stop WaveformView failed") }
++        runCatching { voiceWave?.stop() }.onFailure { Timber.w(it, "Stop voice overlay animation failed") }
 +        val transition =
 +            TransitionSet().apply {
 +                addTransition(Slide(Gravity.BOTTOM).apply { addTarget(overlay) })
@@ -2368,12 +3136,312 @@ index dc20453..436dbab 100644
      override fun onStartInput(info: EditorInfo) {
          val targetKeyboard =
              when (info.imeOptions and EditorInfo.IME_FLAG_FORCE_ASCII) {
-diff --git a/app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt b/app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt
+diff --git a/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionEntry.kt b/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionEntry.kt
+index a51faa5..1017529 100644
+--- a/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionEntry.kt
++++ b/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionEntry.kt
+@@ -20,6 +20,8 @@ sealed class SwitchOptionEntry(
+             UpdateConfig,
+             Keyboard,
+             ThemeList,
++            FloatingKeyboard,
++            VoiceImagery,
+         }
+     }
+ 
+diff --git a/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionWindow.kt b/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionWindow.kt
+index bc6e4c8..85f0208 100644
+--- a/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionWindow.kt
++++ b/app/src/main/java/com/osfans/trime/ime/switches/SwitchOptionWindow.kt
+@@ -20,8 +20,10 @@ import com.osfans.trime.daemon.launchOnReady
+ import com.osfans.trime.data.theme.Theme
+ import com.osfans.trime.ime.bar.ui.ToolButton
+ import com.osfans.trime.ime.broadcast.InputBroadcastReceiver
++import com.osfans.trime.ime.core.FloatingKeyboard
+ import com.osfans.trime.ime.core.TrimeInputMethodService
+ import com.osfans.trime.ime.dialog.EnabledSchemaPickerDialog
++import com.osfans.trime.ime.voice.VoiceImageryPickerDialog
+ import com.osfans.trime.ime.window.BoardWindow
+ import com.osfans.trime.ui.main.settings.ThemePickerDialog
+ import com.osfans.trime.util.AppUtils
+@@ -42,30 +44,44 @@ class SwitchOptionWindow :
+     private val rime: RimeSession by di.instance()
+     private val theme: Theme by di.instance()
+ 
+-    private val staticEntries by lazy {
+-        arrayOf(
+-            SwitchOptionEntry.Static(
+-                context.getString(R.string.theme),
+-                R.drawable.ic_baseline_color_lens_24,
+-                SwitchOptionEntry.Static.Type.ThemeList,
+-            ),
+-            SwitchOptionEntry.Static(
+-                context.getString(R.string.schemata),
+-                R.drawable.ic_round_view_list_24,
+-                SwitchOptionEntry.Static.Type.SchemaList,
+-            ),
+-            SwitchOptionEntry.Static(
+-                context.getString(R.string.update_config),
+-                R.drawable.ic_baseline_sync_24,
+-                SwitchOptionEntry.Static.Type.UpdateConfig,
+-            ),
+-            SwitchOptionEntry.Static(
+-                context.getString(R.string.virtual_keyboard),
+-                R.drawable.ic_baseline_keyboard_24,
+-                SwitchOptionEntry.Static.Type.Keyboard,
++    private fun buildStaticEntries(): Array<SwitchOptionEntry.Static> = arrayOf(
++        SwitchOptionEntry.Static(
++            context.getString(R.string.theme),
++            R.drawable.ic_baseline_color_lens_24,
++            SwitchOptionEntry.Static.Type.ThemeList,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(R.string.schemata),
++            R.drawable.ic_round_view_list_24,
++            SwitchOptionEntry.Static.Type.SchemaList,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(R.string.update_config),
++            R.drawable.ic_baseline_sync_24,
++            SwitchOptionEntry.Static.Type.UpdateConfig,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(R.string.virtual_keyboard),
++            R.drawable.ic_baseline_keyboard_24,
++            SwitchOptionEntry.Static.Type.Keyboard,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(
++                if (FloatingKeyboard.isEnabled()) {
++                    R.string.dahi_floating_keyboard_menu_on
++                } else {
++                    R.string.dahi_floating_keyboard_menu_off
++                },
+             ),
+-        )
+-    }
++            R.drawable.ic_baseline_drag_handle_24,
++            SwitchOptionEntry.Static.Type.FloatingKeyboard,
++        ),
++        SwitchOptionEntry.Static(
++            context.getString(R.string.dahi_vi_menu_entry),
++            R.drawable.ic_dahi_music_note_24,
++            SwitchOptionEntry.Static.Type.VoiceImagery,
++        ),
++    )
+ 
+     var popupMenu: PopupMenu? = null
+ 
+@@ -116,6 +132,20 @@ class SwitchOptionWindow :
+                             }
+                         }
+                         SwitchOptionEntry.Static.Type.Keyboard -> AppUtils.launchMainToKeyboard(context)
++                        SwitchOptionEntry.Static.Type.FloatingKeyboard -> {
++                            FloatingKeyboard.toggle()
++                            updateSchemaOptionEntries()
++                            val toastRes =
++                                if (FloatingKeyboard.isEnabled()) {
++                                    R.string.dahi_floating_keyboard_toast_on
++                                } else {
++                                    R.string.dahi_floating_keyboard_toast_off
++                                }
++                            Toast.makeText(service, toastRes, Toast.LENGTH_SHORT).show()
++                        }
++                        SwitchOptionEntry.Static.Type.VoiceImagery -> showDialog {
++                            VoiceImageryPickerDialog.build(context)
++                        }
+                         SwitchOptionEntry.Static.Type.ThemeList -> showDialog { r ->
+                             ThemePickerDialog.build(service.lifecycleScope, context) {
+                                 r.commitComposition()
+@@ -165,7 +195,7 @@ class SwitchOptionWindow :
+         val switches = rime.run { schemaCached }.switches
+         adapter.submitList(
+             listOf(
+-                *staticEntries,
++                *buildStaticEntries(),
+                 *switches.mapNotNull { SwitchOptionEntry.fromSwitch(rime, it) }.toTypedArray(),
+             ),
+         )
+@@ -207,7 +237,7 @@ class SwitchOptionWindow :
+             service.lifecycleScope.launch {
+                 adapter.submitList(
+                     listOf(
+-                        *staticEntries,
++                        *buildStaticEntries(),
+                         *data.mapNotNull { SwitchOptionEntry.fromSwitch(rime, it) }.toTypedArray(),
+                     ),
+                 )
+diff --git a/app/src/main/java/com/osfans/trime/ime/voice/VoiceImagery.kt b/app/src/main/java/com/osfans/trime/ime/voice/VoiceImagery.kt
 new file mode 100755
-index 0000000..d0d7159
+index 0000000..3350c4e
 --- /dev/null
-+++ b/app/src/main/java/com/osfans/trime/ime/voice/WaveformView.kt
-@@ -0,0 +1,129 @@
++++ b/app/src/main/java/com/osfans/trime/ime/voice/VoiceImagery.kt
+@@ -0,0 +1,113 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.ime.voice
++
++import android.content.SharedPreferences
++import androidx.annotation.StringRes
++import androidx.core.content.edit
++import androidx.preference.PreferenceManager
++import com.osfans.trime.R
++import com.osfans.trime.util.appContext
++
++/**
++ * 声情意象（语音动效）的选项目录。
++ *
++ * 序号即系统默认顺序（1 号为默认值），[id] 为持久化用的稳定标识符。
++ */
++enum class VoiceImageryStyle(
++    val id: String,
++    @StringRes val nameRes: Int,
++    @StringRes val noteRes: Int,
++) {
++    GentleFlow("gentle_flow", R.string.dahi_vi_name_gentle_flow, R.string.dahi_vi_note_gentle_flow),
++    QuietGlow("quiet_glow", R.string.dahi_vi_name_quiet_glow, R.string.dahi_vi_note_quiet_glow),
++    StarDots("star_dots", R.string.dahi_vi_name_star_dots, R.string.dahi_vi_note_star_dots),
++    SlowRipple("slow_ripple", R.string.dahi_vi_name_slow_ripple, R.string.dahi_vi_note_slow_ripple),
++    SmoothSurge("smooth_surge", R.string.dahi_vi_name_smooth_surge, R.string.dahi_vi_note_smooth_surge),
++    ClearRhythm("clear_rhythm", R.string.dahi_vi_name_clear_rhythm, R.string.dahi_vi_note_clear_rhythm),
++    MistFlow("mist_flow", R.string.dahi_vi_name_mist_flow, R.string.dahi_vi_note_mist_flow),
++    RagingWave("raging_wave", R.string.dahi_vi_name_raging_wave, R.string.dahi_vi_note_raging_wave),
++    Blank("blank", R.string.dahi_vi_name_blank, R.string.dahi_vi_note_blank),
++    ModeRandom("mode_random", R.string.dahi_vi_name_mode_random, R.string.dahi_vi_note_mode_random),
++    ModeAdaptive("mode_adaptive", R.string.dahi_vi_name_mode_adaptive, R.string.dahi_vi_note_mode_adaptive),
++    ;
++
++    /** 是否为“绘制型”动效（1~8），随机/自适应都从这 8 套里取。 */
++    val isDrawable: Boolean
++        get() = ordinal <= RagingWave.ordinal
++
++    companion object {
++        fun fromId(id: String?): VoiceImageryStyle? = VoiceImageryStyle.entries.firstOrNull { it.id == id }
++
++        /** 可作为随机/自适应素材的 8 套基础动效。 */
++        val baseStyles: List<VoiceImageryStyle> get() = VoiceImageryStyle.entries.filter { it.isDrawable }
++    }
++}
++
++/**
++ * 声情意象的持久化状态。
++ *
++ * 存放在默认 SharedPreferences（键前缀 `dahi_vi_`），便于随「备份与还原」一起导出；
++ * 备份时由 [com.osfans.trime.data.backup.BackupManager] 单独处理该前缀，不与普通偏好混在一起。
++ */
++object VoiceImagery {
++    const val KEY_PREFIX = "dahi_vi_"
++    private const val KEY_CURRENT = "dahi_vi_current"
++    private const val KEY_ORDER = "dahi_vi_order"
++    private const val KEY_MAX_AMPLITUDE = "dahi_vi_max_amplitude"
++    private const val KEY_SENSITIVITY = "dahi_vi_sensitivity"
++    private const val KEY_TOOLBAR_BUTTON = "dahi_vi_toolbar_button"
++
++    const val DEFAULT_MAX_AMPLITUDE = 100
++    const val DEFAULT_SENSITIVITY = 50
++    const val MIN_MAX_AMPLITUDE = 10
++
++    private val prefs: SharedPreferences
++        get() = PreferenceManager.getDefaultSharedPreferences(appContext)
++
++    fun all(): List<VoiceImageryStyle> = VoiceImageryStyle.entries
++
++    /** 当前选中的动效（非法值回退到 1 号默认项）。 */
++    fun current(): VoiceImageryStyle = VoiceImageryStyle.fromId(prefs.getString(KEY_CURRENT, null)) ?: VoiceImageryStyle.GentleFlow
++
++    fun setCurrent(style: VoiceImageryStyle) {
++        prefs.edit { putString(KEY_CURRENT, style.id) }
++    }
++
++    /** 用户自定义顺序；未出现的条目按默认顺序追加在后面。 */
++    fun order(): List<VoiceImageryStyle> {
++        val saved =
++            prefs
++                .getString(KEY_ORDER, null)
++                ?.split(',')
++                ?.mapNotNull { VoiceImageryStyle.fromId(it) }
++                .orEmpty()
++        val result = saved.distinct()
++        return result + all().filterNot { result.contains(it) }
++    }
++
++    fun setOrder(styles: List<VoiceImageryStyle>) {
++        prefs.edit { putString(KEY_ORDER, styles.joinToString(",") { it.id }) }
++    }
++
++    fun maxAmplitude(): Int = prefs.getInt(KEY_MAX_AMPLITUDE, DEFAULT_MAX_AMPLITUDE).coerceIn(MIN_MAX_AMPLITUDE, 100)
++
++    fun setMaxAmplitude(value: Int) {
++        prefs.edit { putInt(KEY_MAX_AMPLITUDE, value.coerceIn(MIN_MAX_AMPLITUDE, 100)) }
++    }
++
++    fun sensitivity(): Int = prefs.getInt(KEY_SENSITIVITY, DEFAULT_SENSITIVITY).coerceIn(0, 100)
++
++    fun setSensitivity(value: Int) {
++        prefs.edit { putInt(KEY_SENSITIVITY, value.coerceIn(0, 100)) }
++    }
++
++    fun toolbarButtonEnabled(): Boolean = prefs.getBoolean(KEY_TOOLBAR_BUTTON, true)
++
++    fun setToolbarButtonEnabled(value: Boolean) {
++        prefs.edit { putBoolean(KEY_TOOLBAR_BUTTON, value) }
++    }
++}
+diff --git a/app/src/main/java/com/osfans/trime/ime/voice/VoiceImageryPickerDialog.kt b/app/src/main/java/com/osfans/trime/ime/voice/VoiceImageryPickerDialog.kt
+new file mode 100755
+index 0000000..cbe36a3
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/ime/voice/VoiceImageryPickerDialog.kt
+@@ -0,0 +1,40 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.ime.voice
++
++import android.app.AlertDialog
++import android.content.Context
++import android.widget.Toast
++import com.osfans.trime.R
++
++/**
++ * 声情意象的快捷切换候选悬浮窗。
++ *
++ * 供工具栏按钮与键盘「三点菜单」共用；列表顺序与系统设置页中用户拖动的顺序一致。
++ * 由输入法侧通过 `TrimeInputMethodService.showDialog` 显示，因此这里返回 [AlertDialog] 而非直接 show。
++ */
++object VoiceImageryPickerDialog {
++    fun build(context: Context): AlertDialog {
++        val order = VoiceImagery.order()
++        val labels = order.map { context.getString(it.nameRes) }.toTypedArray()
++        val currentIndex = order.indexOf(VoiceImagery.current())
++        return AlertDialog
++            .Builder(context)
++            .setTitle(R.string.dahi_vi_picker_title)
++            .setSingleChoiceItems(labels, currentIndex) { dialog, which ->
++                val style = order[which]
++                VoiceImagery.setCurrent(style)
++                Toast
++                    .makeText(
++                        context,
++                        context.getString(R.string.dahi_vi_selected_toast, context.getString(style.nameRes)),
++                        Toast.LENGTH_SHORT,
++                    ).show()
++                dialog.dismiss()
++            }.setNegativeButton(android.R.string.cancel, null)
++            .create()
++    }
++}
+diff --git a/app/src/main/java/com/osfans/trime/ime/voice/VoiceImageryView.kt b/app/src/main/java/com/osfans/trime/ime/voice/VoiceImageryView.kt
+new file mode 100755
+index 0000000..1bed043
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/ime/voice/VoiceImageryView.kt
+@@ -0,0 +1,540 @@
 +/*
 + * SPDX-FileCopyrightText: 2026 Rime community
 + * SPDX-License-Identifier: GPL-3.0-or-later
@@ -2384,58 +3452,96 @@ index 0000000..d0d7159
 +import android.content.Context
 +import android.graphics.Canvas
 +import android.graphics.Color
++import android.graphics.LinearGradient
 +import android.graphics.Paint
++import android.graphics.Path
++import android.graphics.Shader
 +import android.util.AttributeSet
 +import android.view.View
 +import androidx.annotation.ColorInt
++import kotlin.math.abs
 +import kotlin.math.ln
 +import kotlin.math.max
 +import kotlin.math.sin
++import kotlin.random.Random
 +
 +/**
-+ * 实时音频波形视图。
++ * 声情意象的实时动效视图。
 + *
-+ * 上游 fork 基于第三方库 jaygoo/WaveLineView 实现；此处为保持工程零额外依赖，
-+ * 用一个自绘的简单柱状波形替代，但对外 API 与说点啥/小企鹅保持一致：
-+ * [start] / [stop] / [updateAmplitude] / [setWaveformColor]。
++ * 对外 API 与原有波形视图保持一致（[start] / [stop] / [updateAmplitude] / [setWaveformColor]），
++ * 额外通过 [setStyle] / [setMaxAmplitude] / [setSensitivity] 选择动效与参数。
++ *
++ * 音量来自语音识别客户端推送的振幅流；自适应用「音量 + 音量变化速率」近似活跃度，
++ * 不依赖真实 PCM 与语义识别。
 + */
-+class WaveformView @JvmOverloads constructor(
++class VoiceImageryView @JvmOverloads constructor(
 +    context: Context,
 +    attrs: AttributeSet? = null,
 +    defStyleAttr: Int = 0,
 +) : View(context, attrs, defStyleAttr) {
 +
-+    companion object {
-+        private const val AMPLITUDE_GAIN = 1.6
-+        private const val AMPLITUDE_LOG_K = 18.0
-+        private const val BAR_COUNT = 48
-+        private const val FRAME_DELAY_MS = 40L
++    private companion object {
++        const val FRAME_DELAY_MS = 33L
++        const val AMPLITUDE_GAIN = 1.6
++        const val AMPLITUDE_LOG_K = 18.0
++        const val BAR_COUNT = 40
++        const val MAX_PARTICLES = 80
++        const val MAX_RINGS = 7
++        const val TWO_PI = 6.2831855f
 +    }
 +
-+    private val paint =
-+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
-+            strokeCap = Paint.Cap.ROUND
-+            color = Color.WHITE
-+        }
++    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND }
++    private val path = Path()
++    private val random = Random(System.currentTimeMillis())
 +
 +    @ColorInt
 +    private var lineColor: Int = Color.WHITE
 +
-+    private var isActive = false
-+    private var normalizedVolume = 0f
++    private var maxAmplitudeScale = 1f
++    private var sensitivity = 0.5f
++
++    private var style: VoiceImageryStyle = VoiceImageryStyle.GentleFlow
++
++    /** 随机/自适应在单次语音会话内固定使用的基础动效。 */
++    private var sessionBase: VoiceImageryStyle = VoiceImageryStyle.GentleFlow
++
++    private var active = false
++    private var blankOnly = false
++    private var time = 0f
++    private var targetVolume = 0f
++    private var prevVolume = 0f
++    private var amplitude = 0f
++    private var rateEma = 0f
++    private var activity = 0f
++
 +    private val levels = FloatArray(BAR_COUNT)
-+    private var phase = 0f
++    private val particles = ArrayList<Particle>()
++    private val rings = ArrayList<Ring>()
++    private var particleAcc = 0f
++    private var ringAcc = 0f
++
++    private class Particle(
++        var x: Float,
++        var y: Float,
++        var vx: Float,
++        var vy: Float,
++        var life: Float,
++        var size: Float,
++    )
++
++    private class Ring(
++        var x: Float,
++        var y: Float,
++        var radius: Float,
++        var maxRadius: Float,
++        var strength: Float,
++    )
 +
 +    private val frameRunnable =
 +        object : Runnable {
 +            override fun run() {
-+                if (!isActive) return
-+                phase += 0.35f
-+                for (i in levels.indices) {
-+                    val wave = (sin((phase + i * 0.4f).toDouble()).toFloat() + 1f) / 2f
-+                    val target = normalizedVolume * (0.35f + 0.65f * wave)
-+                    levels[i] = max(levels[i] * 0.6f, target)
-+                }
++                if (!active) return
++                advance(FRAME_DELAY_MS / 1000f)
 +                invalidate()
 +                postDelayed(this, FRAME_DELAY_MS)
 +            }
@@ -2443,43 +3549,56 @@ index 0000000..d0d7159
 +
 +    fun setWaveformColor(@ColorInt color: Int) {
 +        lineColor = color
-+        paint.color = color
++        invalidate()
++    }
++
++    fun setMaxAmplitude(percent: Int) {
++        maxAmplitudeScale = percent.coerceIn(10, 100) / 100f
++    }
++
++    fun setSensitivity(percent: Int) {
++        sensitivity = percent.coerceIn(0, 100) / 100f
++    }
++
++    fun setStyle(id: String) {
++        val next = VoiceImageryStyle.fromId(id) ?: VoiceImageryStyle.GentleFlow
++        if (next == style) return
++        style = next
++        prepareSession()
 +        invalidate()
 +    }
 +
 +    fun updateAmplitude(amplitude: Float) {
-+        if (!isActive) return
-+        normalizedVolume = amplitudeToVolume(amplitude)
++        if (!active) return
++        targetVolume = amplitudeToVolume(amplitude)
 +    }
 +
 +    fun start() {
-+        if (isActive) return
-+        isActive = true
++        if (active) return
++        active = true
++        prepareSession()
++        if (blankOnly || visualTargets().isEmpty()) {
++            invalidate()
++            return
++        }
 +        postDelayed(frameRunnable, FRAME_DELAY_MS)
 +    }
 +
 +    fun stop() {
-+        if (!isActive) return
-+        isActive = false
++        if (!active) return
++        active = false
 +        removeCallbacks(frameRunnable)
 +        levels.fill(0f)
-+        normalizedVolume = 0f
++        particles.clear()
++        rings.clear()
++        particleAcc = 0f
++        ringAcc = 0f
++        amplitude = 0f
++        targetVolume = 0f
++        prevVolume = 0f
++        rateEma = 0f
++        activity = 0f
 +        invalidate()
-+    }
-+
-+    override fun onDraw(canvas: Canvas) {
-+        super.onDraw(canvas)
-+        if (width <= 0 || height <= 0) return
-+        paint.color = lineColor
-+        paint.strokeWidth = max(2f, width / (BAR_COUNT * 2.5f))
-+        val centerY = height / 2f
-+        val maxHalf = height / 2f * 0.9f
-+        val step = width.toFloat() / BAR_COUNT
-+        for (i in levels.indices) {
-+            val x = step * i + step / 2f
-+            val half = max(maxHalf * levels[i], paint.strokeWidth)
-+            canvas.drawLine(x, centerY - half, x, centerY + half, paint)
-+        }
 +    }
 +
 +    override fun onVisibilityChanged(
@@ -2487,15 +3606,375 @@ index 0000000..d0d7159
 +        visibility: Int,
 +    ) {
 +        super.onVisibilityChanged(changedView, visibility)
-+        if (changedView == this && visibility != View.VISIBLE) {
-+            stop()
-+        }
++        if (changedView == this && visibility != View.VISIBLE) stop()
 +    }
 +
 +    override fun onDetachedFromWindow() {
 +        super.onDetachedFromWindow()
 +        stop()
 +    }
++
++    // ============================================================
++    //  会话准备与状态推进
++    // ============================================================
++
++    private fun prepareSession() {
++        sessionBase =
++            when (style) {
++                VoiceImageryStyle.ModeRandom -> VoiceImageryStyle.baseStyles.random()
++                else -> if (style.isDrawable) style else VoiceImageryStyle.GentleFlow
++            }
++        blankOnly = style == VoiceImageryStyle.Blank
++    }
++
++    private fun ampValue(): Float = (amplitude * maxAmplitudeScale).coerceIn(0f, 1f)
++
++    private fun advance(dt: Float) {
++        time += dt
++        val attack = 0.5f
++        val release = 0.12f
++        amplitude += (targetVolume - amplitude) * (if (targetVolume > amplitude) attack else release)
++        amplitude = amplitude.coerceIn(0f, 1f)
++
++        val dv = abs(targetVolume - prevVolume)
++        prevVolume = targetVolume
++        rateEma = rateEma * 0.88f + dv * 0.12f
++        val raw = (0.55f * amplitude + 0.45f * (rateEma * 12f).coerceAtMost(1f)).coerceIn(0f, 1f)
++        val gain = 0.6f + 1.4f * sensitivity
++        activity = (((raw - 0.5f) * gain) + 0.5f).coerceIn(0f, 1f)
++
++        val amp = ampValue()
++        advanceLevels(amp)
++        advanceRings(dt, amp)
++        advanceParticles(dt, amp)
++    }
++
++    private fun advanceLevels(amp: Float) {
++        for (i in levels.indices) {
++            val wave = (waveSin(time * 4.5f + i * 0.4f) + 1f) / 2f
++            val center = 1f - 0.45f * abs(i / (levels.size - 1f) * 2f - 1f)
++            val level = amp * (0.3f + 0.7f * wave) * center
++            levels[i] = max(levels[i] * 0.55f, level)
++        }
++    }
++
++    private fun advanceRings(
++        dt: Float,
++        amp: Float,
++    ) {
++        ringAcc += dt * (0.7f + 2.6f * amp)
++        val maxRadius = max(dp(36f), height * (0.32f + 0.55f * amp))
++        while (ringAcc >= 1f && rings.size < MAX_RINGS) {
++            ringAcc -= 1f
++            rings.add(
++                Ring(
++                    x = width / 2f,
++                    y = height * 0.92f,
++                    radius = 0f,
++                    maxRadius = maxRadius,
++                    strength = 0.45f + 0.55f * amp,
++                ),
++            )
++        }
++        val speed = max(dp(30f), width * (0.25f + 0.75f * amp))
++        rings.forEach { it.radius += speed * dt }
++        rings.removeAll { it.radius > it.maxRadius }
++    }
++
++    private fun advanceParticles(
++        dt: Float,
++        amp: Float,
++    ) {
++        particleAcc += dt * (10f + 46f * amp)
++        while (particleAcc >= 1f && particles.size < MAX_PARTICLES) {
++            particleAcc -= 1f
++            val angle = random.nextFloat() * TWO_PI
++            val speed = dp(8f) + dp(30f) * (0.35f + 0.65f * amp) * random.nextFloat()
++            particles.add(
++                Particle(
++                    x = width / 2f,
++                    y = height * 0.62f,
++                    vx = waveSin(angle) * speed,
++                    vy = -abs(angle / TWO_PI - 0.5f) * speed * 0.4f - speed * 0.15f,
++                    life = 1f,
++                    size = dp(1.2f) + dp(1.8f) * random.nextFloat(),
++                ),
++            )
++        }
++        particles.forEach {
++            it.x += it.vx * dt
++            it.y += it.vy * dt
++            it.life -= dt * (0.35f + 0.4f * (1f - amp))
++        }
++        particles.removeAll { it.life <= 0f || it.y < -dp(10f) || it.x < -dp(10f) || it.x > width + dp(10f) }
++    }
++
++    // ============================================================
++    //  绘制
++    // ============================================================
++
++    private fun visualTargets(): List<Pair<VoiceImageryStyle, Float>> = when (style) {
++        VoiceImageryStyle.ModeRandom -> listOf(sessionBase to 1f)
++        VoiceImageryStyle.ModeAdaptive -> {
++            val base = VoiceImageryStyle.baseStyles
++            val pos = (activity * (base.size - 1)).coerceIn(0f, (base.size - 1).toFloat())
++            val index = pos.toInt().coerceIn(0, base.size - 1)
++            val frac = (pos - index).coerceIn(0f, 1f)
++            if (index >= base.size - 1) {
++                listOf(base[base.size - 1] to 1f)
++            } else {
++                listOf(base[index] to (1f - frac), base[index + 1] to frac)
++            }
++        }
++        VoiceImageryStyle.Blank -> emptyList()
++        else -> listOf(style to 1f)
++    }
++
++    override fun onDraw(canvas: Canvas) {
++        super.onDraw(canvas)
++        if (width <= 0 || height <= 0) return
++        val targets = visualTargets()
++        if (targets.isEmpty()) return
++
++        paint.shader = null
++        paint.color = lineColor
++        paint.alpha = 255
++        targets.forEach { (target, weight) ->
++            if (weight <= 0.01f) return@forEach
++            when (target) {
++                VoiceImageryStyle.GentleFlow -> drawGentleFlow(canvas, weight)
++                VoiceImageryStyle.QuietGlow -> drawQuietGlow(canvas, weight)
++                VoiceImageryStyle.StarDots -> drawStarDots(canvas, weight)
++                VoiceImageryStyle.SlowRipple -> drawSlowRipple(canvas, weight)
++                VoiceImageryStyle.SmoothSurge -> drawSmoothSurge(canvas, weight)
++                VoiceImageryStyle.ClearRhythm -> drawClearRhythm(canvas, weight)
++                VoiceImageryStyle.MistFlow -> drawMistFlow(canvas, weight)
++                VoiceImageryStyle.RagingWave -> drawRagingWave(canvas, weight)
++                else -> Unit
++            }
++        }
++        paint.shader = null
++        paint.alpha = 255
++    }
++
++    /** 1. 清纹徐流：多层平行细线，随音量做垂直波浪形变，上层振幅略大。 */
++    private fun drawGentleFlow(
++        canvas: Canvas,
++        weight: Float,
++    ) {
++        val amp = ampValue()
++        val w = width.toFloat()
++        val h = height.toFloat()
++        val layers = 3
++        paint.style = Paint.Style.STROKE
++        paint.strokeWidth = dp(1.6f)
++        for (i in 0 until layers) {
++            val lf = (layers - i).toFloat() / layers
++            val baseY = h * (0.40f + 0.15f * i)
++            val waveAmp = h * 0.17f * lf * amp + dp(1.5f)
++            val freq = 1.05f + 0.3f * i
++            path.reset()
++            var x = 0f
++            val step = max(2f, w / 56f)
++            while (x <= w) {
++                val y = baseY + waveSin(TWO_PI * freq * (x / w) + time * (0.9f + 0.35f * i)) * waveAmp
++                if (x == 0f) path.moveTo(x, y) else path.lineTo(x, y)
++                x += step
++            }
++            paint.alpha = alphaOf((0.26f + 0.5f * lf) * weight)
++            canvas.drawPath(path, paint)
++        }
++    }
++
++    /** 2. 静息沉光：底部半透明光晕渐变缓慢呼吸。 */
++    private fun drawQuietGlow(
++        canvas: Canvas,
++        weight: Float,
++    ) {
++        val amp = ampValue()
++        val w = width.toFloat()
++        val h = height.toFloat()
++        val breath = 0.5f + 0.5f * waveSin(time * 0.7f)
++        val glowH = h * (0.2f + 0.2f * breath) * (0.45f + 0.55f * amp)
++        val a = ((0.2f + 0.5f * amp) * (0.6f + 0.4f * breath) * weight).coerceIn(0f, 1f)
++        paint.style = Paint.Style.FILL
++        paint.alpha = alphaOf(a)
++        paint.shader =
++            LinearGradient(
++                0f,
++                h,
++                0f,
++                (h - glowH).coerceAtLeast(0f),
++                lineColor,
++                lineColor and 0x00FFFFFF,
++                Shader.TileMode.CLAMP,
++            )
++        canvas.drawRect(0f, (h - glowH).coerceAtLeast(0f), w, h, paint)
++        paint.shader = null
++    }
++
++    /** 3. 星星点点：底部细小光点阵列，音量驱动明暗与轻微上下位移，中间亮两侧暗。 */
++    private fun drawStarDots(
++        canvas: Canvas,
++        weight: Float,
++    ) {
++        val amp = ampValue()
++        val w = width.toFloat()
++        val h = height.toFloat()
++        val cols = 16
++        val rows = 3
++        paint.style = Paint.Style.FILL
++        for (r in 0 until rows) {
++            for (c in 0 until cols) {
++                val fx = (c + 0.5f) / cols
++                val phase = ((r * 17 + c * 7) % 13) / 13f * TWO_PI
++                val twinkle = 0.5f + 0.5f * waveSin(time * 2.2f + phase)
++                val center = 1f - 0.55f * abs(fx * 2f - 1f)
++                val mag = (0.28f + 0.72f * amp) * twinkle * center
++                val x = w * fx
++                val y = h * (0.55f + 0.13f * r) - h * 0.05f * mag
++                paint.alpha = alphaOf((0.16f + 0.72f * mag) * weight)
++                canvas.drawCircle(x, y, dp(1.3f) + dp(1.7f) * mag, paint)
++            }
++        }
++    }
++
++    /** 4. 环漪悠漾：底部居中的同心圆环，向外扩散并衰减。 */
++    private fun drawSlowRipple(
++        canvas: Canvas,
++        weight: Float,
++    ) {
++        paint.style = Paint.Style.STROKE
++        paint.strokeWidth = dp(2f)
++        rings.forEach {
++            val t = (it.radius / it.maxRadius).coerceIn(0f, 1f)
++            val fade = (1f - t) * (1f - t)
++            paint.alpha = alphaOf(fade * 0.6f * it.strength * weight)
++            canvas.drawCircle(it.x, it.y, it.radius, paint)
++        }
++    }
++
++    /** 5. 碧浪腾舒：多层平滑正弦曲线，曲线下方低透明度填充。 */
++    private fun drawSmoothSurge(
++        canvas: Canvas,
++        weight: Float,
++    ) {
++        val amp = ampValue()
++        val w = width.toFloat()
++        val h = height.toFloat()
++        val layers = 3
++        for (i in 0 until layers) {
++            val lf = (i + 1).toFloat() / layers
++            val baseY = h * (0.36f + 0.16f * i)
++            val waveAmp = h * (0.08f + 0.18f * lf) * amp + dp(1.5f)
++            val freq = 0.8f + 0.5f * i
++            path.reset()
++            var x = 0f
++            val step = max(2f, w / 56f)
++            while (x <= w) {
++                val y =
++                    baseY +
++                        waveSin(TWO_PI * freq * (x / w) + time * (1.1f + 0.4f * i)) * waveAmp +
++                        waveSin(TWO_PI * freq * 2.3f * (x / w) + time * 1.7f) * waveAmp * 0.25f
++                if (x == 0f) path.moveTo(x, y) else path.lineTo(x, y)
++                x += step
++            }
++            path.lineTo(w, h)
++            path.lineTo(0f, h)
++            path.close()
++            paint.style = Paint.Style.FILL
++            paint.alpha = alphaOf(0.1f * lf * weight)
++            canvas.drawPath(path, paint)
++            path.reset()
++            x = 0f
++            while (x <= w) {
++                val y =
++                    baseY +
++                        waveSin(TWO_PI * freq * (x / w) + time * (1.1f + 0.4f * i)) * waveAmp +
++                        waveSin(TWO_PI * freq * 2.3f * (x / w) + time * 1.7f) * waveAmp * 0.25f
++                if (x == 0f) path.moveTo(x, y) else path.lineTo(x, y)
++                x += step
++            }
++            paint.style = Paint.Style.STROKE
++            paint.strokeWidth = dp(2f)
++            paint.alpha = alphaOf((0.35f + 0.4f * lf) * weight)
++            canvas.drawPath(path, paint)
++        }
++    }
++
++    /** 6. 明律铿锵：等宽细竖条频谱，中间权重略高。 */
++    private fun drawClearRhythm(
++        canvas: Canvas,
++        weight: Float,
++    ) {
++        val w = width.toFloat()
++        val h = height.toFloat()
++        val centerY = h * 0.62f
++        val maxHalf = h * 0.42f
++        val step = w / BAR_COUNT
++        paint.style = Paint.Style.STROKE
++        paint.strokeWidth = max(dp(2f), step * 0.45f)
++        for (i in levels.indices) {
++            val x = step * i + step / 2f
++            val center = 1f - 0.45f * abs(i / (levels.size - 1f) * 2f - 1f)
++            val half = max(paint.strokeWidth, maxHalf * levels[i] * center)
++            paint.alpha = alphaOf((0.22f + 0.7f * levels[i]) * weight)
++            canvas.drawLine(x, centerY - half, x, centerY + half, paint)
++        }
++    }
++
++    /** 7. 迷雾萦回：大量微小粒子自中心向外缓慢、无序流动。 */
++    private fun drawMistFlow(
++        canvas: Canvas,
++        weight: Float,
++    ) {
++        paint.style = Paint.Style.FILL
++        particles.forEach {
++            paint.alpha = alphaOf(it.life * 0.5f * weight)
++            canvas.drawCircle(it.x, it.y, it.size, paint)
++        }
++    }
++
++    /** 8. 海浪怒吼：多层半透明宽笔画叠加，模拟模糊流体噪波。 */
++    private fun drawRagingWave(
++        canvas: Canvas,
++        weight: Float,
++    ) {
++        val amp = ampValue()
++        val w = width.toFloat()
++        val h = height.toFloat()
++        val layers = 6
++        for (i in 0 until layers) {
++            val lf = (i + 1).toFloat() / layers
++            val baseY = h * (0.34f + 0.09f * i)
++            val waveAmp = h * (0.05f + 0.24f * lf) * (0.25f + 0.75f * amp)
++            val p1 = time * (0.8f + 0.22f * i)
++            val p2 = time * (1.4f + 0.3f * i) + i * 1.7f
++            path.reset()
++            var x = 0f
++            val step = max(2f, w / 64f)
++            while (x <= w) {
++                val u = x / w
++                val y =
++                    baseY +
++                        waveSin(TWO_PI * (1.3f + 0.4f * i) * u + p1) * waveAmp +
++                        waveSin(TWO_PI * (3.1f + 0.7f * i) * u + p2) * waveAmp * 0.45f +
++                        waveSin(TWO_PI * (6.3f + i) * u + p1 * 1.8f) * waveAmp * 0.22f
++                if (x == 0f) path.moveTo(x, y) else path.lineTo(x, y)
++                x += step
++            }
++            paint.style = Paint.Style.STROKE
++            paint.strokeWidth = dp(3f + 2f * i)
++            paint.alpha = alphaOf((0.06f + 0.07f * lf) * (0.4f + 0.6f * amp) * weight)
++            canvas.drawPath(path, paint)
++        }
++    }
++
++    private fun waveSin(value: Float): Float = sin(value.toDouble()).toFloat()
++
++    private fun alphaOf(value: Float): Int = (value.coerceIn(0f, 1f) * 255f).toInt().coerceIn(0, 255)
++
++    private fun dp(value: Float): Float = value * resources.displayMetrics.density
 +
 +    private fun amplitudeToVolume(amplitude: Float): Float {
 +        val a = (amplitude.coerceIn(0f, 1f).toDouble() * AMPLITUDE_GAIN).coerceIn(0.0, 1.0)
@@ -4044,6 +5523,54 @@ index 0000000..cfb1ccf
 +        onDone = null
 +    }
 +}
+diff --git a/app/src/main/java/com/osfans/trime/ui/main/MainFragment.kt b/app/src/main/java/com/osfans/trime/ui/main/MainFragment.kt
+index 347872e..7ba7fab 100644
+--- a/app/src/main/java/com/osfans/trime/ui/main/MainFragment.kt
++++ b/app/src/main/java/com/osfans/trime/ui/main/MainFragment.kt
+@@ -72,6 +72,11 @@ class MainFragment : PaddingPreferenceFragment() {
+                     R.drawable.ic_baseline_keyboard_24,
+                     NavigationRoute.VirtualKeyboard,
+                 )
++                addDestinationPreference(
++                    R.string.dahi_voice_imagery,
++                    R.drawable.ic_dahi_music_note_24,
++                    NavigationRoute.VoiceImagery,
++                )
+                 addDestinationPreference(
+                     R.string.candidates_window,
+                     R.drawable.ic_baseline_list_alt_24,
+diff --git a/app/src/main/java/com/osfans/trime/ui/main/NavigationRoute.kt b/app/src/main/java/com/osfans/trime/ui/main/NavigationRoute.kt
+index 5be7ab9..3565786 100644
+--- a/app/src/main/java/com/osfans/trime/ui/main/NavigationRoute.kt
++++ b/app/src/main/java/com/osfans/trime/ui/main/NavigationRoute.kt
+@@ -16,6 +16,7 @@ import com.osfans.trime.ui.main.settings.ClipboardSettingsFragment
+ import com.osfans.trime.ui.main.settings.GeneralSettingsFragment
+ import com.osfans.trime.ui.main.settings.KeyboardSettingsFragment
+ import com.osfans.trime.ui.main.settings.ProfileSettingsFragment
++import com.osfans.trime.ui.main.settings.VoiceImagerySettingsFragment
+ import com.osfans.trime.ui.main.settings.schema.SchemaListFragment
+ import com.osfans.trime.ui.main.settings.theme.ThemeSettingsFragment
+ import com.osfans.trime.ui.main.settings.userdict.UserDictionaryFragment
+@@ -43,6 +44,9 @@ sealed class NavigationRoute : Parcelable {
+     @Serializable
+     data object VirtualKeyboard : NavigationRoute()
+ 
++    @Serializable
++    data object VoiceImagery : NavigationRoute()
++
+     @Serializable
+     data object CandidatesWindow : NavigationRoute()
+ 
+@@ -88,6 +92,9 @@ sealed class NavigationRoute : Parcelable {
+             fragment<KeyboardSettingsFragment, VirtualKeyboard> {
+                 label = ctx.getString(R.string.virtual_keyboard)
+             }
++            fragment<VoiceImagerySettingsFragment, VoiceImagery> {
++                label = ctx.getString(R.string.dahi_voice_imagery)
++            }
+             fragment<CandidatesSettingsFragment, CandidatesWindow> {
+                 label = ctx.getString(R.string.candidates_window)
+             }
 diff --git a/app/src/main/java/com/osfans/trime/ui/main/settings/ProfileSettingsFragment.kt b/app/src/main/java/com/osfans/trime/ui/main/settings/ProfileSettingsFragment.kt
 index b2e9d3f..7b6f6ec 100644
 --- a/app/src/main/java/com/osfans/trime/ui/main/settings/ProfileSettingsFragment.kt
@@ -4088,6 +5615,253 @@ index b2e9d3f..7b6f6ec 100644
          }
          updateStorageModeUi()
      }
+diff --git a/app/src/main/java/com/osfans/trime/ui/main/settings/VoiceImagerySettingsFragment.kt b/app/src/main/java/com/osfans/trime/ui/main/settings/VoiceImagerySettingsFragment.kt
+new file mode 100755
+index 0000000..796dae3
+--- /dev/null
++++ b/app/src/main/java/com/osfans/trime/ui/main/settings/VoiceImagerySettingsFragment.kt
+@@ -0,0 +1,221 @@
++/*
++ * SPDX-FileCopyrightText: 2026 Rime community
++ * SPDX-License-Identifier: GPL-3.0-or-later
++ */
++
++package com.osfans.trime.ui.main.settings
++
++import android.os.Bundle
++import android.view.LayoutInflater
++import android.view.View
++import android.view.ViewGroup
++import android.widget.SeekBar
++import android.widget.TextView
++import androidx.appcompat.widget.SwitchCompat
++import androidx.fragment.app.Fragment
++import androidx.recyclerview.widget.ItemTouchHelper
++import androidx.recyclerview.widget.LinearLayoutManager
++import androidx.recyclerview.widget.RecyclerView
++import com.osfans.trime.R
++import com.osfans.trime.ime.voice.VoiceImagery
++import com.osfans.trime.ime.voice.VoiceImageryStyle
++import com.osfans.trime.util.applyNavBarInsetsBottomPadding
++import splitties.resources.styledColor
++
++/**
++ * 「声情意象」系统设置页：11 个动效选项（点按选择、拖动排序）+ 统一的最大振幅上限、
++ * 自适应灵敏度与工具栏快捷按钮开关。
++ */
++class VoiceImagerySettingsFragment : Fragment() {
++    override fun onCreateView(
++        inflater: LayoutInflater,
++        container: ViewGroup?,
++        savedInstanceState: Bundle?,
++    ): View = inflater.inflate(R.layout.fragment_dahi_voice_imagery, container, false)
++
++    override fun onViewCreated(
++        view: View,
++        savedInstanceState: Bundle?,
++    ) {
++        super.onViewCreated(view, savedInstanceState)
++        val list = view.findViewById<RecyclerView>(R.id.dahi_vi_list)
++        list.layoutManager = LinearLayoutManager(requireContext())
++        list.applyNavBarInsetsBottomPadding()
++
++        val adapter = VoiceImageryAdapter()
++        list.adapter = adapter
++
++        val callback =
++            object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
++                override fun getMovementFlags(
++                    recyclerView: RecyclerView,
++                    viewHolder: RecyclerView.ViewHolder,
++                ): Int = if (viewHolder.itemViewType == VoiceImageryAdapter.TYPE_OPTION) {
++                    makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)
++                } else {
++                    makeMovementFlags(0, 0)
++                }
++
++                override fun onMove(
++                    recyclerView: RecyclerView,
++                    viewHolder: RecyclerView.ViewHolder,
++                    target: RecyclerView.ViewHolder,
++                ): Boolean {
++                    val from = viewHolder.bindingAdapterPosition
++                    val to = target.bindingAdapterPosition
++                    if (from <= 0 || to <= 0) return false
++                    return adapter.moveItem(from - 1, to - 1)
++                }
++
++                override fun onSwiped(
++                    viewHolder: RecyclerView.ViewHolder,
++                    direction: Int,
++                ) = Unit
++
++                override fun clearView(
++                    recyclerView: RecyclerView,
++                    viewHolder: RecyclerView.ViewHolder,
++                ) {
++                    super.clearView(recyclerView, viewHolder)
++                    adapter.persistOrder()
++                }
++            }
++        ItemTouchHelper(callback).attachToRecyclerView(list)
++    }
++}
++
++/** 声情意象设置页的列表：第 0 项为参数区，其后为 11 个可拖动排序的动效选项。 */
++class VoiceImageryAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
++    companion object {
++        const val TYPE_HEADER = 0
++        const val TYPE_OPTION = 1
++    }
++
++    private val items: MutableList<VoiceImageryStyle> = VoiceImagery.order().toMutableList()
++
++    override fun getItemCount(): Int = items.size + 1
++
++    override fun getItemViewType(position: Int): Int = if (position == 0) TYPE_HEADER else TYPE_OPTION
++
++    override fun onCreateViewHolder(
++        parent: ViewGroup,
++        viewType: Int,
++    ): RecyclerView.ViewHolder {
++        val inflater = LayoutInflater.from(parent.context)
++        return if (viewType == TYPE_HEADER) {
++            HeaderHolder(inflater.inflate(R.layout.item_dahi_vi_header, parent, false))
++        } else {
++            OptionHolder(inflater.inflate(R.layout.item_dahi_vi_option, parent, false))
++        }
++    }
++
++    override fun onBindViewHolder(
++        holder: RecyclerView.ViewHolder,
++        position: Int,
++    ) {
++        when (holder) {
++            is HeaderHolder -> holder.bind()
++            is OptionHolder -> holder.bind(items[position - 1], position)
++        }
++    }
++
++    fun moveItem(
++        from: Int,
++        to: Int,
++    ): Boolean {
++        if (from == to) return false
++        if (from !in items.indices || to !in items.indices) return false
++        items.add(to, items.removeAt(from))
++        notifyItemMoved(from, to)
++        return true
++    }
++
++    fun persistOrder() {
++        VoiceImagery.setOrder(items)
++        notifyItemChanged(0)
++    }
++
++    inner class HeaderHolder(
++        root: View,
++    ) : RecyclerView.ViewHolder(root) {
++        private val maxAmplitude: SeekBar = root.findViewById(R.id.dahi_vi_header_max_amp)
++        private val maxAmplitudeValue: TextView = root.findViewById(R.id.dahi_vi_header_max_amp_value)
++        private val sensitivity: SeekBar = root.findViewById(R.id.dahi_vi_header_sensitivity)
++        private val sensitivityValue: TextView = root.findViewById(R.id.dahi_vi_header_sensitivity_value)
++        private val toolbarSwitch: SwitchCompat = root.findViewById(R.id.dahi_vi_header_toolbar_switch)
++
++        fun bind() {
++            maxAmplitude.max = 100 - VoiceImagery.MIN_MAX_AMPLITUDE
++            maxAmplitude.progress = VoiceImagery.maxAmplitude() - VoiceImagery.MIN_MAX_AMPLITUDE
++            maxAmplitudeValue.text = "${VoiceImagery.maxAmplitude()}%"
++            maxAmplitude.setOnSeekBarChangeListener(
++                object : SeekBar.OnSeekBarChangeListener {
++                    override fun onProgressChanged(
++                        seekBar: SeekBar,
++                        progress: Int,
++                        fromUser: Boolean,
++                    ) {
++                        val value = VoiceImagery.MIN_MAX_AMPLITUDE + progress
++                        maxAmplitudeValue.text = "$value%"
++                        VoiceImagery.setMaxAmplitude(value)
++                    }
++
++                    override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
++
++                    override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
++                },
++            )
++
++            sensitivity.max = 100
++            sensitivity.progress = VoiceImagery.sensitivity()
++            sensitivityValue.text = "${VoiceImagery.sensitivity()}%"
++            sensitivity.setOnSeekBarChangeListener(
++                object : SeekBar.OnSeekBarChangeListener {
++                    override fun onProgressChanged(
++                        seekBar: SeekBar,
++                        progress: Int,
++                        fromUser: Boolean,
++                    ) {
++                        sensitivityValue.text = "$progress%"
++                        VoiceImagery.setSensitivity(progress)
++                    }
++
++                    override fun onStartTrackingTouch(seekBar: SeekBar) = Unit
++
++                    override fun onStopTrackingTouch(seekBar: SeekBar) = Unit
++                },
++            )
++
++            toolbarSwitch.isChecked = VoiceImagery.toolbarButtonEnabled()
++            toolbarSwitch.setOnCheckedChangeListener { _, checked ->
++                VoiceImagery.setToolbarButtonEnabled(checked)
++            }
++        }
++    }
++
++    inner class OptionHolder(
++        root: View,
++    ) : RecyclerView.ViewHolder(root) {
++        private val index: TextView = root.findViewById(R.id.dahi_vi_option_index)
++        private val name: TextView = root.findViewById(R.id.dahi_vi_option_name)
++        private val note: TextView = root.findViewById(R.id.dahi_vi_option_note)
++        private val check: TextView = root.findViewById(R.id.dahi_vi_option_check)
++
++        fun bind(
++            style: VoiceImageryStyle,
++            position: Int,
++        ) {
++            val ctx = itemView.context
++            index.text = position.toString()
++            name.text = ctx.getString(style.nameRes)
++            note.text = ctx.getString(style.noteRes)
++            val selected = VoiceImagery.current() == style
++            check.text = if (selected) "✓" else ""
++            check.setTextColor(ctx.styledColor(android.R.attr.colorAccent))
++            itemView.setOnClickListener {
++                VoiceImagery.setCurrent(style)
++                notifyItemRangeChanged(1, items.size)
++            }
++        }
++    }
++}
+diff --git a/app/src/main/res/drawable/dahi_vi_divider.xml b/app/src/main/res/drawable/dahi_vi_divider.xml
+new file mode 100755
+index 0000000..6058189
+--- /dev/null
++++ b/app/src/main/res/drawable/dahi_vi_divider.xml
+@@ -0,0 +1,14 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<shape xmlns:android="http://schemas.android.com/apk/res/android"
++    android:shape="rectangle">
++
++    <solid android:color="#1F808080" />
++
++    <size android:height="1dp" />
++</shape>
 diff --git a/app/src/main/res/drawable/ic_baseline_drag_handle_24.xml b/app/src/main/res/drawable/ic_baseline_drag_handle_24.xml
 new file mode 100755
 index 0000000..8bfa808
@@ -4150,6 +5924,295 @@ index 0000000..28278f4
 +      android:fillColor="@android:color/white"
 +      android:pathData="M6,6h12v12H6z"/>
 +</vector>
+diff --git a/app/src/main/res/drawable/ic_dahi_music_note_24.xml b/app/src/main/res/drawable/ic_dahi_music_note_24.xml
+new file mode 100755
+index 0000000..d8b2e69
+--- /dev/null
++++ b/app/src/main/res/drawable/ic_dahi_music_note_24.xml
+@@ -0,0 +1,16 @@
++<!--
++  ~ SPDX-FileCopyrightText: 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++    android:width="24dp"
++    android:height="24dp"
++    android:viewportWidth="24"
++    android:viewportHeight="24">
++
++    <path
++        android:fillColor="@android:color/white"
++        android:pathData="M12,3v10.55c-0.59,-0.34 -1.27,-0.55 -2,-0.55 -2.21,0 -4,1.79 -4,4s1.79,4 4,4 4,-1.79 4,-4V7h4V3h-6z" />
++
++</vector>
+diff --git a/app/src/main/res/layout/fragment_dahi_voice_imagery.xml b/app/src/main/res/layout/fragment_dahi_voice_imagery.xml
+new file mode 100755
+index 0000000..209a81a
+--- /dev/null
++++ b/app/src/main/res/layout/fragment_dahi_voice_imagery.xml
+@@ -0,0 +1,15 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<androidx.recyclerview.widget.RecyclerView xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/dahi_vi_list"
++    android:layout_width="match_parent"
++    android:layout_height="match_parent"
++    android:clipToPadding="false"
++    android:paddingTop="8dp"
++    android:paddingBottom="8dp"
++    android:scrollbars="vertical" />
+diff --git a/app/src/main/res/layout/item_dahi_vi_header.xml b/app/src/main/res/layout/item_dahi_vi_header.xml
+new file mode 100755
+index 0000000..ada5c6b
+--- /dev/null
++++ b/app/src/main/res/layout/item_dahi_vi_header.xml
+@@ -0,0 +1,167 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="wrap_content"
++    android:orientation="vertical"
++    android:paddingStart="16dp"
++    android:paddingTop="8dp"
++    android:paddingEnd="16dp"
++    android:paddingBottom="8dp">
++
++    <TextView
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:text="@string/dahi_vi_max_amplitude"
++        android:textColor="?android:attr/textColorPrimary"
++        android:textSize="16sp" />
++
++    <TextView
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="2dp"
++        android:lineSpacingExtra="2dp"
++        android:text="@string/dahi_vi_max_amplitude_summary"
++        android:textColor="?android:attr/textColorSecondary"
++        android:textSize="12sp" />
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="4dp"
++        android:gravity="center_vertical"
++        android:orientation="horizontal">
++
++        <SeekBar
++            android:id="@+id/dahi_vi_header_max_amp"
++            android:layout_width="0dp"
++            android:layout_height="wrap_content"
++            android:layout_weight="1" />
++
++        <TextView
++            android:id="@+id/dahi_vi_header_max_amp_value"
++            android:layout_width="52dp"
++            android:layout_height="wrap_content"
++            android:gravity="end"
++            android:textColor="?android:attr/textColorPrimary"
++            android:textSize="14sp" />
++    </LinearLayout>
++
++    <View
++        android:layout_width="match_parent"
++        android:layout_height="1dp"
++        android:layout_marginTop="12dp"
++        android:background="@drawable/dahi_vi_divider" />
++
++    <TextView
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="12dp"
++        android:text="@string/dahi_vi_sensitivity"
++        android:textColor="?android:attr/textColorPrimary"
++        android:textSize="16sp" />
++
++    <TextView
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="2dp"
++        android:lineSpacingExtra="2dp"
++        android:text="@string/dahi_vi_sensitivity_summary"
++        android:textColor="?android:attr/textColorSecondary"
++        android:textSize="12sp" />
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="4dp"
++        android:gravity="center_vertical"
++        android:orientation="horizontal">
++
++        <SeekBar
++            android:id="@+id/dahi_vi_header_sensitivity"
++            android:layout_width="0dp"
++            android:layout_height="wrap_content"
++            android:layout_weight="1" />
++
++        <TextView
++            android:id="@+id/dahi_vi_header_sensitivity_value"
++            android:layout_width="52dp"
++            android:layout_height="wrap_content"
++            android:gravity="end"
++            android:textColor="?android:attr/textColorPrimary"
++            android:textSize="14sp" />
++    </LinearLayout>
++
++    <View
++        android:layout_width="match_parent"
++        android:layout_height="1dp"
++        android:layout_marginTop="12dp"
++        android:background="@drawable/dahi_vi_divider" />
++
++    <LinearLayout
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="12dp"
++        android:gravity="center_vertical"
++        android:orientation="horizontal">
++
++        <LinearLayout
++            android:layout_width="0dp"
++            android:layout_height="wrap_content"
++            android:layout_weight="1"
++            android:orientation="vertical">
++
++            <TextView
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:text="@string/dahi_vi_toolbar_button"
++                android:textColor="?android:attr/textColorPrimary"
++                android:textSize="16sp" />
++
++            <TextView
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:layout_marginTop="2dp"
++                android:lineSpacingExtra="2dp"
++                android:text="@string/dahi_vi_toolbar_button_summary"
++                android:textColor="?android:attr/textColorSecondary"
++                android:textSize="12sp" />
++        </LinearLayout>
++
++        <androidx.appcompat.widget.SwitchCompat
++            android:id="@+id/dahi_vi_header_toolbar_switch"
++            android:layout_width="wrap_content"
++            android:layout_height="wrap_content"
++            android:layout_marginStart="8dp" />
++    </LinearLayout>
++
++    <View
++        android:layout_width="match_parent"
++        android:layout_height="1dp"
++        android:layout_marginTop="12dp"
++        android:background="@drawable/dahi_vi_divider" />
++
++    <TextView
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="12dp"
++        android:text="@string/dahi_vi_section_effect"
++        android:textColor="?android:attr/textColorPrimary"
++        android:textSize="16sp" />
++
++    <TextView
++        android:id="@+id/dahi_vi_header_hint"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginTop="2dp"
++        android:layout_marginBottom="4dp"
++        android:lineSpacingExtra="2dp"
++        android:text="@string/dahi_vi_hint"
++        android:textColor="?android:attr/textColorSecondary"
++        android:textSize="12sp" />
++</LinearLayout>
+diff --git a/app/src/main/res/layout/item_dahi_vi_option.xml b/app/src/main/res/layout/item_dahi_vi_option.xml
+new file mode 100755
+index 0000000..12b0bc1
+--- /dev/null
++++ b/app/src/main/res/layout/item_dahi_vi_option.xml
+@@ -0,0 +1,67 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/dahi_vi_option_root"
++    android:layout_width="match_parent"
++    android:layout_height="wrap_content"
++    android:background="?android:attr/selectableItemBackground"
++    android:gravity="center_vertical"
++    android:minHeight="64dp"
++    android:orientation="horizontal"
++    android:paddingStart="16dp"
++    android:paddingTop="10dp"
++    android:paddingEnd="12dp"
++    android:paddingBottom="10dp">
++
++    <TextView
++        android:id="@+id/dahi_vi_option_index"
++        android:layout_width="26dp"
++        android:layout_height="wrap_content"
++        android:textColor="?android:attr/textColorSecondary"
++        android:textSize="14sp" />
++
++    <LinearLayout
++        android:layout_width="0dp"
++        android:layout_height="wrap_content"
++        android:layout_weight="1"
++        android:orientation="vertical">
++
++        <TextView
++            android:id="@+id/dahi_vi_option_name"
++            android:layout_width="match_parent"
++            android:layout_height="wrap_content"
++            android:textColor="?android:attr/textColorPrimary"
++            android:textSize="16sp" />
++
++        <TextView
++            android:id="@+id/dahi_vi_option_note"
++            android:layout_width="match_parent"
++            android:layout_height="wrap_content"
++            android:layout_marginTop="2dp"
++            android:lineSpacingExtra="2dp"
++            android:textColor="?android:attr/textColorSecondary"
++            android:textSize="12sp" />
++    </LinearLayout>
++
++    <TextView
++        android:id="@+id/dahi_vi_option_check"
++        android:layout_width="24dp"
++        android:layout_height="wrap_content"
++        android:gravity="center"
++        android:textSize="18sp"
++        android:textStyle="bold" />
++
++    <ImageView
++        android:id="@+id/dahi_vi_option_handle"
++        android:layout_width="24dp"
++        android:layout_height="24dp"
++        android:layout_marginStart="4dp"
++        android:alpha="0.55"
++        android:contentDescription="@string/dahi_vi_section_effect"
++        android:src="@drawable/ic_baseline_drag_handle_24" />
++</LinearLayout>
 diff --git a/app/src/main/res/values-zh-rCN/strings.xml b/app/src/main/res/values-zh-rCN/strings.xml
 index c3938e9..ae6419e 100644
 --- a/app/src/main/res/values-zh-rCN/strings.xml
@@ -4440,6 +6503,34 @@ index 0000000..151ef50
 +    <!-- 剪切板 / 收藏夹 搜索框提示 -->
 +    <string name="dahi_clipboard_search_hint">Search</string>
 +</resources>
+diff --git a/app/src/main/res/values/strings_dahi_floating.xml b/app/src/main/res/values/strings_dahi_floating.xml
+new file mode 100755
+index 0000000..84d7cda
+--- /dev/null
++++ b/app/src/main/res/values/strings_dahi_floating.xml
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2015 - 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<resources>
++    <!-- 悬浮键盘 -->
++    <string name="dahi_floating_keyboard_toolbar_button">工具栏显示悬浮键盘按钮</string>
++    <string name="dahi_floating_keyboard_summary">键盘可自由拖动、缩放；关闭即恢复停靠</string>
++    <string name="dahi_floating_keyboard_handle">拖动此处移动键盘 · 悬浮键盘</string>
++    <string name="dahi_floating_keyboard_shrink">－</string>
++    <string name="dahi_floating_keyboard_grow">＋</string>
++    <string name="dahi_floating_keyboard_dock">停靠</string>
++    <string name="dahi_floating_keyboard_menu_on">悬浮键盘·开</string>
++    <string name="dahi_floating_keyboard_menu_off">悬浮键盘·关</string>
++    <string name="dahi_floating_keyboard_toast_on">已开启悬浮键盘，可拖动顶部把手移动键盘</string>
++    <string name="dahi_floating_keyboard_toast_off">已关闭悬浮键盘</string>
++    <!-- 键盘透明度 -->
++    <string name="dahi_keyboard_transparency">键盘透明度</string>
++</resources>
 diff --git a/app/src/main/res/values/strings_dahi_voice.xml b/app/src/main/res/values/strings_dahi_voice.xml
 new file mode 100755
 index 0000000..fc35ea9
@@ -4475,6 +6566,66 @@ index 0000000..fc35ea9
 +    <string name="asrkb_err_unsupported">当前供应商不支持外部推送 PCM。</string>
 +    <string name="asrkb_err_start_failed_with_code">启动会话失败（错误码 %1$d）</string>
 +    <string name="asrkb_err_service_error_with_code">语音服务错误（错误码 %1$d）</string>
++</resources>
+diff --git a/app/src/main/res/values/strings_dahi_voice_imagery.xml b/app/src/main/res/values/strings_dahi_voice_imagery.xml
+new file mode 100755
+index 0000000..1963b6c
+--- /dev/null
++++ b/app/src/main/res/values/strings_dahi_voice_imagery.xml
+@@ -0,0 +1,54 @@
++<?xml version="1.0" encoding="utf-8"?>
++
++<!--
++  ~ SPDX-FileCopyrightText: 2026 Rime community
++  ~ SPDX-License-Identifier: GPL-3.0-or-later
++  -->
++
++<resources>
++    <!-- 声情意象 -->
++    <string name="dahi_voice_imagery">声情意象</string>
++    <string name="dahi_voice_imagery_summary">语音输入的实时动效：按声音与情绪意象切换</string>
++    <string name="dahi_vi_section_effect">动效选项</string>
++    <string name="dahi_vi_hint">点按选择当前动效，拖动右侧把手可调整顺序；工具栏与三点菜单的快捷切换顺序与此保持一致。</string>
++    <string name="dahi_vi_max_amplitude">最大振动幅度上限</string>
++    <string name="dahi_vi_max_amplitude_summary">统一限制所有动效的最大振幅，避免遮挡输入内容（无动效的第 9 项不受影响）</string>
++    <string name="dahi_vi_sensitivity">自适应灵敏度（仅第 11 项）</string>
++    <string name="dahi_vi_sensitivity_summary">“声随情迁”根据声音活跃度在 8 套动效间过渡的快慢</string>
++    <string name="dahi_vi_toolbar_button">工具栏显示声情意象快捷切换按钮</string>
++    <string name="dahi_vi_toolbar_button_summary">在工具栏显示 ♬ 按钮，点按即可弹出候选悬浮窗切换语音动效</string>
++    <string name="dahi_vi_current_prefix">当前</string>
++    <string name="dahi_vi_selected_toast">声情意象已切换：%1$s</string>
++    <string name="dahi_vi_picker_title">声情意象 · 切换动效</string>
++    <string name="dahi_vi_menu_entry">声情意象 · 切换动效</string>
++    <string name="dahi_vi_order_hint">顺序：%1$s</string>
++
++    <!-- 11 个选项：名称 -->
++    <string name="dahi_vi_name_gentle_flow">清纹徐流</string>
++    <string name="dahi_vi_name_quiet_glow">静息沉光</string>
++    <string name="dahi_vi_name_star_dots">星星点点</string>
++    <string name="dahi_vi_name_slow_ripple">环漪悠漾</string>
++    <string name="dahi_vi_name_smooth_surge">碧浪腾舒</string>
++    <string name="dahi_vi_name_clear_rhythm">明律铿锵</string>
++    <string name="dahi_vi_name_mist_flow">迷雾萦回</string>
++    <string name="dahi_vi_name_raging_wave">海浪怒吼</string>
++    <string name="dahi_vi_name_blank">一片空白</string>
++    <string name="dahi_vi_name_mode_random">随遇随机</string>
++    <string name="dahi_vi_name_mode_adaptive">声随情迁（自适应）</string>
++
++    <!-- 11 个选项：选项下方注释文案 -->
++    <string name="dahi_vi_note_gentle_flow">从容舒缓、娓娓道来：水平细线波动   ★☆☆☆☆</string>
++    <string name="dahi_vi_note_quiet_glow">呼吸松弛、心境平和：动态渐变呼吸   ★★☆☆☆</string>
++    <string name="dahi_vi_note_star_dots">点点心生、细腻内敛：点状阵列   ★★☆☆☆</string>
++    <string name="dahi_vi_note_slow_ripple">同频共振、思绪轻漾：同心圆涟漪   ★★★☆☆</string>
++    <string name="dahi_vi_note_smooth_surge">兴致盎然、灵动外放：连续正弦波浪   ★★★★☆</string>
++    <string name="dahi_vi_note_clear_rhythm">理性清醒、条理清晰：等宽竖条频谱   ★★★★☆</string>
++    <string name="dahi_vi_note_mist_flow">思绪纷乱、遐想恍惚：流动粒子流   ★★★★☆</string>
++    <string name="dahi_vi_note_raging_wave">澎湃汹涌、大海无量：模糊海浪流体噪波   ★★★★★</string>
++    <string name="dahi_vi_note_blank">清清白白、一沉不染：☆☆☆☆☆</string>
++    <string name="dahi_vi_note_mode_random">随遇而安、无常惊喜：动态随机</string>
++    <string name="dahi_vi_note_mode_adaptive">声随心动、势随情变：随声音状态自适应调整动效气质</string>
++
++    <!-- 备份与还原 -->
++    <string name="dahi_backup_voice_imagery">声情意象动效参数</string>
 +</resources>
 diff --git a/build-dahi.sh b/build-dahi.sh
 new file mode 100755
