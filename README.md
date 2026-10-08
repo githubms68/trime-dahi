@@ -1,4 +1,4 @@
-<img width="2200" height="1211" alt="微信图片_20261008234240" src="https://github.com/user-attachments/assets/2f62ce4e-c434-4da3-96bb-37f2307adaed" />
+<img width="2429" height="1391" alt="微信图片_20261009073807" src="https://github.com/user-attachments/assets/3bac1b21-00e3-407a-a36e-5c953894497b" />
 <div align="center">
 
 # 同文输入法 · 大海版
