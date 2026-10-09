@@ -155,26 +155,6 @@
 
 ---
 
-## 🛠️ 自行编译（GitHub Actions 零配置）
-
-本仓库采用 **「最小补丁包」** 方案：只需上传 2 个文件到你的 GitHub 仓库，点一下按钮即可出 APK。
-
-### 所需文件（放在仓库根目录）
-```
-your-repo/
-├── dahi.patch          # 大海版完整补丁（对上游 v3.3.12）
-└── .github/workflows/build-dahi-apk.yml  # 工作流文件
-```
-
-### 步骤
-1. GitHub 新建仓库（Public，不勾选 README）
-2. 上传上述 2 个文件 → Commit
-3. 进 **Actions → Build Dahi Trime APK → Run workflow**
-4. 等待 20–40 分钟，Artifacts 下载 `dahi-trime-apk.zip`，解压取 `arm64-v8a` 版
-
-> 原生依赖（librime/OpenCC/...）由 `script/fetch-dahi-deps.sh` 按 v3.3.12 锁定版本自动拉取，**无需上传子模块**；自动生成自签名 keystore，**无需配置 Secrets**。
-
----
 
 ## ❓ 常见问题
 
