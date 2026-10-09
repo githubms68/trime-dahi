@@ -199,6 +199,7 @@
 ---
 
 <p align="center">
-  <sub>如果这个项目让你的输入体验变得更有趣，请给个 ⭐ Star 支持一下！</sub><br>
+  <strong>❤大海用爱发电❤ 如果你觉得有趣或有用，请猛击小星星，给大海一个 Star⭐狠狠鼓励、支持他！<strong><br>
   <sub>Issues & PRs 欢迎随时提交 ~</sub>
 </p>
+
