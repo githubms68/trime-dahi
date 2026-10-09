@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="2416" height="1375" alt="搜狗截图26年10月09日1235_1" src="https://github.com/user-attachments/assets/fad4ee04-1269-4ee1-90cd-74ca35eb83c0" />
+  <img width="2428" height="1377" alt="aitiy_20261009_124958" src="https://github.com/user-attachments/assets/b6037f4c-12f2-4282-9efd-3fd68eebb283" />
 </p>
 
 <h1 align="center">同文输入法 · 大海版 PLUS 「声情意象」</h1>
