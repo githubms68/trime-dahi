@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/githubms68/trime-dahi/releases/latest"><img src="https://img.shields.io/github/v/release/githubms68/trime-dahi?label=下载最新版&color=2ea44f&style=for-the-badge" alt="下载最新版"></a>
+  <a href="https://github.com/githubms68/trime-dahi/releases/latest"><img src="https://img.shields.io/github/v/release/githubms68/trime-dahi?label=%E4%B8%8B%E8%BD%BD%E6%9C%80%E6%96%B0%E7%89%88&color=2ea44f&style=for-the-badge" alt="下载最新版"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=for-the-badge" alt="License"></a>
   <img src="https://img.shields.io/badge/platform-Android%206.0%2B-green?style=for-the-badge" alt="Platform">
   <img src="https://img.shields.io/badge/ABI-arm64--v8a%20%7C%20armeabi--v7a%20%7C%20x86%20%7C%20x86__64-orange?style=for-the-badge" alt="ABI">
