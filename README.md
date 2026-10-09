@@ -1,85 +1,212 @@
 <img width="2429" height="1391" alt="微信图片_20261009073807" src="https://github.com/user-attachments/assets/3bac1b21-00e3-407a-a36e-5c953894497b" />
 <div align="center">
 
-# 同文输入法 · 大海版
+<p align="center">
+  <img src="docs/banner.png" width="100%" alt="同文输入法大海版 PLUS「声情意象」" />
+</p>
 
-**基于同文输入法 (Trime) v3.3.12 的增强定制版【完全无联网权限】**
-剪切板更强 · 备份加密更安心 · 支持「说点啥」语音（支持离线语音模型、隐私无忧；在线语音模型、自由选定） · 与原版共存
+<p align="center">
+  <img src="docs/banner.png" width="100%" alt="同文输入法大海版 PLUS「声情意象」" />
+</p>
 
-[![下载最新版](https://img.shields.io/github/v/release/githubms68/trime-dahi?label=下载最新版&color=2ea44f)](https://github.com/githubms68/trime-dahi/releases/latest)
-[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](./LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Android%206.0%2B-green)]()
+<h1 align="center">同文输入法 · 大海版 PLUS「声情意象」</h1>
 
-**[⬇️ 点此下载 APK](https://github.com/githubms68/trime-dahi/releases/latest)**
+<p align="center">
+  <strong>基于 Trime v3.3.12 · 纯本地运行 · 零联网权限 · 与原版共存安装</strong><br>
+  <em>全网首创 11 种语音实时动效「声情意象」 · 军工级加密备份 · 悬浮键盘 · 剪切板增强</em>
+</p>
 
-</div>
+<p align="center">
+  <a href="https://github.com/githubms68/trime-dahi/releases/latest"><img src="https://img.shields.io/github/v/release/githubms68/trime-dahi?label=下载最新版&color=2ea44f&style=for-the-badge" alt="下载最新版"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=for-the-badge" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-Android%206.0%2B-green?style=for-the-badge" alt="Platform">
+  <img src="https://img.shields.io/badge/ABI-arm64--v8a%20%7C%20armeabi--v7a%20%7C%20x86%20%7C%20x86__64-orange?style=for-the-badge" alt="ABI">
+</p>
+
+<p align="center">
+  <a href="https://github.com/githubms68/trime-dahi/releases/latest"><strong>⬇️ 点此下载 APK（Releases）</strong></a>
+</p>
 
 ---
 
-## 这是什么？
+## 🌊 这是什么？
 
-「大海版」是 [同文输入法](https://github.com/osfans/trime)（Rime 的安卓前端）的一个**增强 fork**：在完整保留原版体验的前提下，补齐了几个日常最想要、原版却缺的功能。
+**大海版 PLUS** 是 [同文输入法 (Trime)](https://github.com/osfans/trime) 的**深度增强版**——在完整保留原版 Rime 体验的前提下，补齐了你曾经只能想象的功能：
 
-- 版本基准：**Trime v3.3.12**
-- 应用名：**同文输入法大海版**
-- 包名：**`com.osfans.trime.dahi`** —— 与官方原版**互不冲突，可同时安装**
+| 基础信息 | 详情 |
+|----------|------|
+| **版本基准** | Trime v3.3.12 (tag `v3.3.12`, commit `e09ac711`) |
+| **应用名** | 同文输入法大海版 PLUS |
+| **包名** | `com.osfans.trime.dahi` —— **与官方原版,可共存安装** |
+| **Rime 数据目录** | `/storage/emulated/0/Android/data/com.osfans.trime.dahi/files/rime` |
+| **权限** | **零联网权限**，纯本地运行，隐私无忧 |
+| **许可证** | GPL-3.0-or-later（沿用上游） |
 
-> ⚠️ 本项目由个人维护，是**非官方**版本，与同文输入法官方无隶属关系。
+> ⚠️ 非官方版本，个人维护，与同文输入法官方无隶属关系。
 
-## ✨ 相比原版新增了什么
+---
 
-### 1. 剪切板 & 收藏夹，终于好用了
-- 🔍 **文字搜索**：剪切板、收藏夹都支持关键词搜索，条目再多也能秒找到。
-- ↕️ **自由拖动排序**：条目左侧有拖拽把手，随意上下拖动，顺序自动保存。
-- 📌 **收藏夹置顶**：收藏夹也支持「置顶」，重要内容永远排最前（行为同原版剪切板）。
+## ✨ 核心黑科技
 
-### 2. 配置页新增「备份与还原」（**加密：你的数据只有你能读取、你做主；别人拿去只能是一堆乱码废物**）
-- 一键备份 **首选项 / 剪切板 / 收藏夹**；换机、刷机、重装后一键还原。
-- 🔐 **全程加密**：备份文件采用 **AES-256-GCM** 认证加密，密码经 **PBKDF2-HMAC-SHA256（20 万次迭代）** 派生。**绝不明文落盘**，文件被他人拿到也读不出内容。
+### 🎭 声情意象 —— **全网首创「语音输入可视化动效」**
 
-### 3. 支持「说点啥」语音输入（支持离线语音模型、隐私无忧；在线语音模型、自由选定）
-- 「常规」设置新增 3 个开关：**说点啥 AIDL 语音输入 / 录音时暂停其他媒体 / 工具栏麦克风按钮**。
-- **长按空格键**或点**工具栏麦克风**即可语音输入，识别结果自动上屏。
-- 语音功能需自行安装「说点啥」，https://github.com/BryceWG/BiBi-Keyboard；https://bibi.brycewg.com/。
-- **注意**与「说点啥」联动，很多用户初次使用都会遇到语音输入时“未找到说点啥服务”提示问题，其实并不是应用和权限问题，解决只需要切换手机应用后台界面，将「说点啥」锁定🔐 后台常驻即可。
+> **一句话：说话时，键盘会「听懂」你的情绪，并用 11 种动态视觉语言实时回应你。**
 
-### 4. 与原版共存
-- 独立包名，与原版同文都能一起安装，随时切换、互不覆盖。
+这是**国内首款、甚至全球首款**支持**多种可切换语音动效**的输入法。不再是枯燥的波形条，而是将声音的「活跃度、节奏、情绪」转化为**会呼吸、会流动、会共鸣**的视觉意象。
 
-## 📸 截图
+| 序号 | 动效名称 | 视觉隐喻 | 情绪内核 | 强度 |
+|------|----------|----------|----------|------|
+| 1 | **清纹徐流** | 一条水平细线随声波起伏 | 从容舒缓、娓娓道来 | ★☆☆☆☆ |
+| 2 | **静息沉光** | 中心呼吸光晕缓慢扩缩 | 呼吸松弛、心境平和 | ★★☆☆☆ |
+| 3 | **星星点点** | 三排光点阵列（中排贴中线） | 点点心生、细腻内敛 | ★★☆☆☆ |
+| 4 | **环漪悠漾** | 同心圆涟漪向外扩散 | 同频共振、思绪轻漾 | ★★★☆☆ |
+| 5 | **碧浪腾舒** | 多层正弦波浪连绵起伏 | 兴致盎然、灵动外放 | ★★★★☆ |
+| 6 | **明律铿锵** | 等宽竖条频谱整齐居中 | 理性清醒、条理清晰 | ★★★★☆ |
+| 7 | **迷雾萦回** | 海量微粒自中心无序流动 | 思绪纷乱、遐想恍惚 | ★★★★☆ |
+| 8 | **海浪怒吼** | 6 层半透明宽笔画叠加模糊流体 | 澎湃汹涌、大海无量 | ★★★★★ |
+| 9 | **一片空白** | **零动效**，纯净无干扰 | 清清白白、一沉不染 | ☆☆☆☆☆ |
+| 10 | **随遇随机** | 每次语音会话随机抽取 1~8 号 | 随遇而安、无常惊喜 | 动态随机 |
+| 11 | **声随情迁（自适应）** | **按声音活跃度在 8 套间平滑过渡** | 声随心动、势随情变 | 自动适应 |
 
-<!-- 把截图放进 docs/ 目录，替换下面路径即可 -->
-| 剪切板\收藏夹搜索 & 拖动排序 | 收藏夹增加置顶 | 加密备份与还原 | 语音输入开关 |
-|:---:|:---:|:---:|:---:|
-| ![clipboard](docs/screenshot-1.jpg) | ![clipboard](docs/screenshot-2.jpg) | ![backup](docs/screenshot-3.jpg) | ![voice](docs/screenshot-4.jpg) |
+> **全自绘实现，零三方依赖**。所有动效以键盘**垂直中线**为基准绘制，拉满「最大振幅上限」时峰谷接近满屏。
+
+**交互设计**：
+- **设置入口**：设置首页 → **声情意象**（位于「虚拟键盘」下方）
+- **快捷切换**：工具栏 ♬ 按钮 / 键盘左上角「三点」菜单 →「声情意象 · 切换动效」
+- **自由排序**：长按拖动选项调整顺序，同步到两个快捷入口
+- **一键复位**：设置页顶部「恢复初始设置」
+- **全局参数**：最大振幅上限（10%–100%）、自适应灵敏度（0%–100%）
+- **随备份走**：备份/还原可勾选「声情意象动效参数」
+
+---
+
+### 🪄 悬浮键盘 —— **你想要的自由，全给你安排上了**
+
+| 特性 | 体验 |
+|------|------|
+| **两入口** | 工具栏按钮 / 键盘「三点」菜单「悬浮键盘·开/关」 / YAML 预设键 `command: floating_keyboard` |
+| **把手三按钮** | 左 `－` / 中 `停靠` / 右 `＋`，**两侧空档皆可拖动**，按钮**不随缩放变小**，缩到最小也能一眼区分、一点就中 |
+| **记忆恢复** | 位置与缩放自动记忆，停靠即恢复贴底 |
+| **不遮挡内容** | 悬浮态**不占用应用内容区**，点击穿透到下层应用 |
+| **全参数可调** | 总开关 / 缩放比例 50%–100% / 透明度 10%–100% / 工具栏按钮显示 |
+
+---
+
+### 📋 剪切板 & 收藏夹 —— **原版痛点，大海版全有**
+
+- 🔍 **实时搜索**：SQL `LIKE` + Room `PagingSource`，输入即刻过滤
+- ↕️ **自由拖动排序**：左侧把手拖拽持久化（`orderIndex` 列 + 数据库迁移 v4→v5）
+- 📌 **收藏夹置顶**：与剪切板行为完全一致，含图钉指示
+- 🌉 **搜索框桥接**：`ClipboardSearchBridge` 将 Rime 提交文本重定向到搜索框，非激活态零拦截
+
+---
+
+### 🔐 备份与还原 —— **军工级加密，绝不明文落盘**
+
+```
+文件格式：magic(8B "DAHIBAK1") | version(1B) | salt(16B) | iv(12B) | AES-256-GCM(ciphertext + 16B tag)
+密钥派生：PBKDF2-HMAC-SHA256 (200,000 次迭代) → 256-bit Key
+```
+
+- 可选备份：**首选项 / 剪切板 / 收藏夹 / 声情意象参数**
+- 还原时同样可单项勾选，**整体覆盖**所选数据，有确认提示
+- 文件被他应用读取也只能得到一堆乱码
+
+---
+
+### 🎤 「说点啥」语音输入联动（AIDL）
+
+- 三开关：**说点啥 AIDL 语音输入 / 录音时暂停其他媒体 / 工具栏麦克风按钮**
+- 触发方式：**长按空格键**（主题映射 `VOICE_ASSIST`）或 **工具栏麦克风**
+- 识别结果经 `onPartial/onFinal` 回填/上屏，含纠错上屏观测
+- 需自行安装「说点啥」并开启「允许外部输入法联动 (AIDL)」
+  - GitHub: https://github.com/BryceWG/BiBi-Keyboard
+  - 官网: https://bibi.brycewg.com/
+
+---
+
+### 🛡️ 零联网 · 隐私无忧
+
+- 纯本地运行，**无任何联网权限**
+- GPL-3.0 开源，代码可审计
+- 与官方同文、CatTrime、BiBi 版**共存安装**
+
+---
+
+## 📸 截图预览
+
+> 请将截图放入仓库 `docs/` 目录，替换下方路径
+
+| 声情意象设置页（11 项可拖拽排序） | 声情意象快捷切换悬浮窗 | 悬浮键盘把手（缩放不变小） | 剪切板搜索 & 拖拽排序 | 加密备份与还原 | 语音输入工具栏麦克风 |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| ![voice_imagery](docs/screenshot-voice-imagery.jpg) | ![voice_picker](docs/screenshot-voice-picker.jpg) | ![floating](docs/screenshot-floating.jpg) | ![clipboard](docs/screenshot-clipboard.jpg) | ![backup](docs/screenshot-backup.jpg) | ![voice_input](docs/screenshot-voice-input.jpg) |
+
+---
 
 ## 📥 下载与安装
 
-1. 打开 **[Releases](https://github.com/githubms68/trime-dahi/releases/latest)**，下载最新的 **`...-arm64-v8a-release.apk`**（现代手机都选这个）。
-2. 传到手机安装（首次可能需允许「安装未知来源应用」）。
-3. 在系统「语言和输入法」中启用「同文输入法大海版」并切换过去。
-4. 首次使用会自动部署 Rime 方案，稍等片刻即可开始打字。
+1. 进入 **[Releases](https://github.com/githubms68/trime-dahi/releases/latest)**
+2. 下载最新 **`...-arm64-v8a-release.apk`**（现代手机首选，旧机型选 `armeabi-v7a`）
+3. 传手机安装（首次需允许「安装未知来源应用」）
+4. 系统「语言和输入法」中启用 **「同文输入法大海版 PLUS」** 并切换
+5. 首次自动部署 Rime 方案，稍等即可使用
 
-支持 ABI：`arm64-v8a`（推荐）/ `armeabi-v7a` / `x86` / `x86_64`。
+支持 ABI：`arm64-v8a`（推荐） / `armeabi-v7a` / `x86` / `x86_64`
+
+---
+
+## 🛠️ 自行编译（GitHub Actions 零配置）
+
+本仓库采用 **「最小补丁包」** 方案：只需上传 2 个文件到你的 GitHub 仓库，点一下按钮即可出 APK。
+
+### 所需文件（放在仓库根目录）
+```
+your-repo/
+├── dahi.patch          # 大海版完整补丁（对上游 v3.3.12）
+└── .github/workflows/build-dahi-apk.yml  # 工作流文件
+```
+
+### 步骤
+1. GitHub 新建仓库（Public，不勾选 README）
+2. 上传上述 2 个文件 → Commit
+3. 进 **Actions → Build Dahi Trime APK → Run workflow**
+4. 等待 20–40 分钟，Artifacts 下载 `dahi-trime-apk.zip`，解压取 `arm64-v8a` 版
+
+> 原生依赖（librime/OpenCC/...）由 `script/fetch-dahi-deps.sh` 按 v3.3.12 锁定版本自动拉取，**无需上传子模块**；自动生成自签名 keystore，**无需配置 Secrets**。
+
+---
 
 ## ❓ 常见问题
 
-- **能和官方同文一起装吗？** 能，包名不同，互不影响。
-- **语音点了没反应？** 需先安装「说点啥」输入法，并在其中开启「允许外部输入法联动 (AIDL)」。本应用**不含**「说点啥」。
-- **提示来源/签名异常？** 个人自签名、非应用商店分发，属正常现象。
-- **以后怎么更新？** 到 Releases 下载新版覆盖安装。**更新前建议先用本版自带的加密备份**。
+| 问题 | 答案 |
+|------|------|
+| **能和官方同文一起装吗？** | 能，包名不同，互不影响 |
+| **语音没反应/提示未找到服务？** | 1) 安装「说点啥」 2) 开启「允许外部输入法联动 (AIDL)」 3) 后台锁定「说点啥」常驻 |
+| **声情意象动效不显示/卡顿？** | 降低「最大振幅上限」、关闭「工具栏按钮」省资源；动效为纯自绘，无 GPU 依赖 |
+| **提示签名异常/来源未知？** | 个人自签名、非应用商店分发，属正常现象 |
+| **怎么更新？** | Releases 下载新版覆盖安装。**更新前建议用本版自带加密备份** |
 
-## 🙏 致敬
+---
 
-- [osfans/trime](https://github.com/osfans/trime) —— 上游同文输入法
-- [amzxyz/rime-wanxiang](https://github.com/amzxyz/rime-wanxiang)—— 「万象拼音」：把算法留在幕后，把纯粹还给指尖，用更优质的数据，接管你的候选。
-- [rime/librime](https://github.com/rime/librime) 及整个 Rime 生态
-- [lzlv312/CatTrime](https://github.com/lzlv312/CatTrime)
-- [osfans/trime-bibi-keyboard](https://github.com/BryceWG/trime-bibi-keyboard) 
-- 「说点啥」输入法提供的语音联动协议
+## 🙏 致敬与鸣谢
 
+| 项目 | 贡献 |
+|------|------|
+| [osfans/trime](https://github.com/osfans/trime) | 上游同文输入法，Rime 安卓前端基石 |
+| [amzxyz/rime-wanxiang](https://github.com/amzxyz/rime-wanxiang) | 万象拼音：把算法留在幕后，把纯粹还给指尖 |
+| [rime/librime](https://github.com/rime/librime) | Rime 核心引擎及整个生态 |
+| [lzlv312/CatTrime](https://github.com/lzlv312/CatTrime) | 优秀的同文 Fork 参考 |
+| [BryceWG/BiBi-Keyboard](https://github.com/BryceWG/BiBi-Keyboard) | 「说点啥」输入法提供的 AIDL 语音联动协议 |
 
-## 📄 许可
+---
 
-沿用上游许可 **GPL-3.0-or-later**，详见 [LICENSE](./LICENSE)。
+## 📄 许可证
 
+沿用上游 **GPL-3.0-or-later**，详见 [LICENSE](./LICENSE)。
+
+---
+
+<p align="center">
+  <sub>如果这个项目让你的输入体验变得更有趣，请给个 ⭐ Star 支持一下！</sub><br>
+  <sub>Issues & PRs 欢迎随时提交 ~</sub>
+</p>
