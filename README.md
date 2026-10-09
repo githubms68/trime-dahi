@@ -2,7 +2,27 @@
   <img width="2429" height="1391" alt="微信图片_20261009073807" src="https://github.com/user-attachments/assets/0dac61f6-55b3-4376-9f10-443531534a3c" />
 </p>
 
-<h1 align="center">同文输入法 · 大海版 PLUS「声情意象」</h1>
+<h1 align="center">同文输入法 · 大海版 PLUS 「声情意象」</h1>
+
+<!-- 副标题：诗意定调 -->
+<p align="center" style="margin-top:8px; font-size:16px; color:#94a3b8; font-weight:500;">
+  在喧嚣算法浪潮中，做那座不联网的孤岛。
+</p>
+
+<!-- 金句：核心价值定调 -->
+<p align="center" style="margin:12px 0 8px; font-size:15px; color:#f472b6; font-weight:700; letter-spacing:0.5px;">
+  离线，是最大的奢侈。
+</p>
+
+<!-- 信条：三个拒绝，硬核展示功能 -->
+<p align="center" style="margin:16px 0 8px; font-size:13px; color:#94a3b8; line-height:2;">
+  拒绝上传 · 拒绝追踪 · 拒绝算法喂养
+</p>
+
+<!-- Slogan：品牌承诺，落脚 -->
+<p align="center" style="margin-top:8px; font-size:14px; color:#38bdf8; font-weight:700;">
+  只做你离线的输入法
+</p>
 
 <p align="center">
   <strong>基于 Trime v3.3.12 · 纯本地运行 · 零联网权限 · 与原版共存安装</strong><br>
