@@ -103,7 +103,7 @@
 | **记忆恢复** | 位置与缩放自动记忆，停靠即恢复贴底 |
 | **不遮挡内容** | 悬浮态**不占用应用内容区**，点击穿透到下层应用 |
 | **全参数可调** | “虚拟键盘”设置页含：总开关 / 缩放比例 50%–100% / 工具栏按钮显示 |
-| **自定义按键切换操作指引** | 找所用主题的trime.yaml文件，打开在其中的preset_keys下加:Keyboard_floating: {label: 悬浮, command: floating_keyboard}在自己要添加手势指令的按键上加:long_click: Keyboard_floating |
+| **自定义按键切换操作指引** | 找到所用主题的trime.yaml文件，打开在其中的preset_keys下加:Keyboard_floating: {label: 悬浮, command: floating_keyboard}；在自己要添加手势指令的按键上加:long_click: Keyboard_floating |
 
 ---
 
