@@ -189,7 +189,7 @@
 | [osfans/trime](https://github.com/osfans/trime) | 上游同文输入法，Rime 安卓前端基石 |
 | [rime/librime](https://github.com/rime/librime) | Rime 核心引擎及整个生态 |
 | [amzxyz/rime-wanxiang](https://github.com/amzxyz/rime-wanxiang) | 万象拼音：把算法留在幕后，把纯粹还给指尖 |
-| [sysrf.cn](https:sysrf.cn) | 全新一代音形输入法，辅助码字根最少 |
+| [sysrf.cn](https://sysrf.cn) | 全新一代音形输入法，辅助码字根最少 |
 | [lzlv312/CatTrime](https://github.com/lzlv312/CatTrime) | 同文 Fork 项目 |
 | [BryceWG/BiBi-Keyboard](https://github.com/BryceWG/BiBi-Keyboard) | 「说点啥」输入法提供的 AIDL 语音联动协议 |
 
