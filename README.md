@@ -26,7 +26,7 @@
 
 <p align="center">
   <strong>基于 Trime v3.3.12 · 纯本地运行 · 零联网权限 · 与原版共存安装</strong><br>
-  <em>全网首创 集成11 种语音实时动效「声情意象」 · 军工级加密备份 · 悬浮键盘 · 剪切板& 收藏夹增强</em>
+  <em>全网首创 集成11 种语音实时动效「声情意象」 · 军工级加密备份 · 悬浮键盘 · 「剪切板& 收藏夹」增强</em>
 </p>
 
 <p align="center">
@@ -102,12 +102,11 @@
 | **记忆恢复** | 位置与缩放自动记忆，停靠即恢复贴底 |
 | **不遮挡内容** | 悬浮态**不占用应用内容区**，点击穿透到下层应用 |
 | **全参数可调** | “虚拟键盘”设置页含：总开关 / 缩放比例 50%–100% / 透明度 10%–100% / 工具栏按钮显示 |
-| **自定义按键切换操作指引** | 找所用主题的trime.yaml文件，打开在其中的preset_keys下加:Keyboard_floating: {label: 悬浮, command: floating_keyboard}在自己要添加手势指令的按键上加:
-long_click: Keyboard_floating |
+| **自定义按键切换操作指引** | 找所用主题的trime.yaml文件，打开在其中的preset_keys下加:Keyboard_floating: {label: 悬浮, command: floating_keyboard}在自己要添加手势指令的按键上加:long_click: Keyboard_floating |
 
 ---
 
-### 📋 剪切板 & 收藏夹 —— **原版痛点，大海版全有**
+### 📋 剪切板 & 收藏夹 —— **原版痛点，大海版全有FIX**
 
 - 🔍 **实时搜索**：SQL `LIKE` + Room `PagingSource`，输入即刻过滤
 - ↕️ **自由拖动排序**：左侧把手拖拽持久化（`orderIndex` 列 + 数据库迁移 v4→v5）
@@ -116,7 +115,7 @@ long_click: Keyboard_floating |
 
 ---
 
-### 🔐 备份与还原 —— **军工级加密，绝不明文落盘**
+### 🔐 备份与还原 —— **军工级加密，绝不明文落盘：你的数据只有你能读取、你做主；别人拿去只能是一堆乱码废物**
 
 ```
 文件格式：magic(8B "DAHIBAK1") | version(1B) | salt(16B) | iv(12B) | AES-256-GCM(ciphertext + 16B tag)
@@ -125,7 +124,7 @@ long_click: Keyboard_floating |
 
 - 可选备份：**首选项 / 剪切板 / 收藏夹 / 声情意象参数**
 - 还原时同样可单项勾选，**整体覆盖**所选数据，有确认提示
-- 文件被他应用读取也只能得到一堆乱码
+- 文件被其他任何应用、任何人读取也只能得到一堆乱码
 
 ---
 
@@ -135,8 +134,8 @@ long_click: Keyboard_floating |
 - 触发方式：**长按空格键**（主题映射 `VOICE_ASSIST`）或 **工具栏麦克风**
 - 识别结果经 `onPartial/onFinal` 回填/上屏，含纠错上屏观测
 - 需自行安装「说点啥」并开启「允许外部输入法联动 (AIDL)」
-  - GitHub: https://github.com/BryceWG/BiBi-Keyboard
-  - 官网: https://bibi.brycewg.com/
+  - 「说点啥」GitHub: https://github.com/BryceWG/BiBi-Keyboard
+  - 「说点啥」官网: https://bibi.brycewg.com/
 
 ---
 
@@ -178,7 +177,7 @@ long_click: Keyboard_floating |
 | **语音没反应/提示未找到服务？** | 1) 安装「说点啥」 2) 开启「允许外部输入法联动 (AIDL)」 3) 后台锁定「说点啥」常驻 |
 | **声情意象动效不显示/卡顿？** | 降低「最大振幅上限」、关闭「工具栏按钮」省资源；动效为纯自绘，无 GPU 依赖 |
 | **提示签名异常/来源未知？** | 个人自签名、非应用商店分发，属正常现象 |
-| **怎么更新？** | Releases 下载新版覆盖安装。**更新前建议用本版自带加密备份** |
+| **怎么更新？** |  大海版老用户Releases下载新版直接覆盖安装更新，重新覆盖安装不会清除旧版数据。**但仍然建议更新前，用大海版自带加密备份进行备份** |
 
 ---
 
@@ -187,9 +186,10 @@ long_click: Keyboard_floating |
 | 项目 | 贡献 |
 |------|------|
 | [osfans/trime](https://github.com/osfans/trime) | 上游同文输入法，Rime 安卓前端基石 |
-| [amzxyz/rime-wanxiang](https://github.com/amzxyz/rime-wanxiang) | 万象拼音：把算法留在幕后，把纯粹还给指尖 |
 | [rime/librime](https://github.com/rime/librime) | Rime 核心引擎及整个生态 |
-| [lzlv312/CatTrime](https://github.com/lzlv312/CatTrime) | 优秀的同文 Fork 参考 |
+| [amzxyz/rime-wanxiang](https://github.com/amzxyz/rime-wanxiang) | 万象拼音：把算法留在幕后，把纯粹还给指尖 |
+| [sysrf.cn](https:sysrf.cn) | 全新一代音形输入法，辅助码字根最少 |
+| [lzlv312/CatTrime](https://github.com/lzlv312/CatTrime) | 同文 Fork 项目 |
 | [BryceWG/BiBi-Keyboard](https://github.com/BryceWG/BiBi-Keyboard) | 「说点啥」输入法提供的 AIDL 语音联动协议 |
 
 ---
