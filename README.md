@@ -2,7 +2,7 @@
   <img width="2438" height="1391" alt="同文输入法大海版" src="https://github.com/user-attachments/assets/2b423936-3b53-4f20-a8ef-4d5d97be96f1" />
 </p>
 
-<h1 align="center">同文输入法 · 大海版 PLUS「声情意象」：为人不识大海版，阅尽同文也枉然！</h1>
+<h1 align="center">同文输入法 · 大海版 PLUS「声情意象」「指尖生花」：为人不识大海版，阅尽同文也枉然！</h1>
 <h1 align="center">用遍所有同文，大海版绝逼是你不能错过的那一个！用了，你就偷着乐吧！</h1>
 
 <!-- 副标题：诗意定调 -->
